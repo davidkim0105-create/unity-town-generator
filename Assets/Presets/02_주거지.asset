@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 41d93e797d27e204c8df0d6b7783cfe2, type: 3}
+  m_Name: "02_\uC8FC\uAC70\uC9C0"
+  m_EditorClassIdentifier: 
+  description: "\U0001F3E1 \uC77C\uBC18 \uC8FC\uAC70\uC9C0\n\uC911\uCE35 \uAC74\uBB3C
+    \uC704\uC8FC, \uC815\uB3C8\uB41C \uBE14\uB85D"
+  townSize: 280
+  aspectRatio: 1
+  townShape: 3
+  shapeNoise: 0.5
+  globalDensity: 0.5
+  densityFalloff: 0.4
+  blockSize: 70
+  roadDistortion: 2
+  roadWidth: 6
+  buildingMargin: 1.5
+  maxFloors: 8
+  floorHeight: 3.2
+  buildingMaxCoverage: 0.85
+  alleyComplexity: 0.5
+  minLotSize: 7
