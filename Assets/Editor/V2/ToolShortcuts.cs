@@ -24,8 +24,11 @@ namespace TownGen.V2.EditorTools
         [Shortcut("TownGen V2/Tool: Connect", KeyCode.T, MOD)]
         static void ActivateConnect() => SafeActivate<NodeConnectTool>();
 
-        [Shortcut("TownGen V2/Tool: Brush",   KeyCode.B, MOD)]
-        static void ActivateBrush()   => SafeActivate<RoadBrushTool>();
+        [Shortcut("TownGen V2/Tool: Brush",     KeyCode.B, MOD)]
+        static void ActivateBrush()     => SafeActivate<RoadBrushTool>();
+
+        [Shortcut("TownGen V2/Tool: Subdivide", KeyCode.D, MOD)]
+        static void ActivateSubdivide() => SafeActivate<SubdivideTool>();
 
         static void SafeActivate<T>() where T : EditorTool
         {

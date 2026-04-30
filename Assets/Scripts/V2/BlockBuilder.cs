@@ -13,7 +13,9 @@ namespace TownGen.V2
             float roadInset = 1.5f,
             Material material = null,
             RegionAuthoring regions = null,
-            float blockThickness = 0.1f)     // ★ 추가
+            float blockThickness = 0.1f,
+            bool useEdgeWidthForInset = false,    // ★ 신규
+            float insetExtraMargin = 0.5f)        // ★ 신규
         {
             if (a == null) return;
             var parent = GetOrCreateBlocksRoot(a);
@@ -26,7 +28,31 @@ namespace TownGen.V2
                 if (f.isOuter) continue;
                 if (f.polygon == null || f.polygon.Count < 3) continue;
 
-                var inset = InsetPolygon(f.polygon, roadInset);
+                List<Vector3> inset;
+                if (useEdgeWidthForInset
+                    && f.nodeIds != null
+                    && f.nodeIds.Count == f.polygon.Count
+                    && a.graph != null)
+                {
+                    // ★ 변별 inset
+                    int n = f.nodeIds.Count;
+                    float[] insets = new float[n];
+                    for (int i = 0; i < n; i++)
+                    {
+                        int aId = f.nodeIds[i];
+                        int bId = f.nodeIds[(i + 1) % n];
+                        var edge = FindEdgeBetween(a.graph, aId, bId);
+                        float halfW = (edge != null) ? edge.width * 0.5f : roadInset;
+                        insets[i] = halfW + insetExtraMargin;
+                    }
+                    inset = InsetPolygonPerEdge(f.polygon, insets);
+                }
+                else
+                {
+                    // 기존 단일 inset
+                    inset = InsetPolygon(f.polygon, roadInset);
+                }
+
                 if (inset.Count < 3) continue;
 
                 var go = new GameObject($"Block_{idx}");
@@ -49,7 +75,7 @@ namespace TownGen.V2
                     }
                 }
 
-                BuildMesh(go, inset, useMat, blockThickness);    // ★ 두께 전달
+                BuildMesh(go, inset, useMat, blockThickness);
                 idx++;
             }
         }
@@ -84,7 +110,6 @@ namespace TownGen.V2
                 {
                     var center = ComputeCentroid(block.polygon);
                     var r = regions.ResolveRegionAt(center);
-                    // ★ 명시적 Region (defaultRegion이 아닌 경우)일 때만 region 세팅 사용
                     if (r != null && r != regions.defaultRegion)
                     {
                         s = r.ToFillerSettings(
@@ -93,7 +118,6 @@ namespace TownGen.V2
                             fallback.lotDepth,
                             fallback.fillInteriorRows);
                     }
-                    // 그 외 (Region 폴리곤 밖, 또는 default)는 인스펙터 fallback 사용
                 }
 
                 BuildingFiller.FillBlock(block, s);
@@ -123,13 +147,28 @@ namespace TownGen.V2
         }
 
         // ─────────────────────────────────────────
-        // Inset (정확한 edge offset + line intersection)
+        // Inset (단일 거리, 기존)
         // ─────────────────────────────────────────
 
         static List<Vector3> InsetPolygon(List<Vector3> poly, float inset)
         {
             int n = poly.Count;
             if (n < 3 || inset <= 0f) return new List<Vector3>(poly);
+            float[] insets = new float[n];
+            for (int i = 0; i < n; i++) insets[i] = inset;
+            return InsetPolygonPerEdge(poly, insets);
+        }
+
+        // ─────────────────────────────────────────
+        // Inset (변별 거리, 신규)
+        // 각 변 i가 변마다 다른 거리로 안쪽으로 평행이동
+        // ─────────────────────────────────────────
+
+        static List<Vector3> InsetPolygonPerEdge(List<Vector3> poly, float[] insetsPerEdge)
+        {
+            int n = poly.Count;
+            if (n < 3 || insetsPerEdge == null || insetsPerEdge.Length != n)
+                return new List<Vector3>(poly);
 
             // ★ 안쪽 방향 판정용 centroid
             Vector2 centroid = Vector2.zero;
@@ -137,10 +176,8 @@ namespace TownGen.V2
             centroid /= n;
 
             // 1. 각 변마다 안쪽으로 평행이동한 직선 계산
-            //    선분: a → b
-            //    안쪽 법선 방향 = centroid 쪽
-            var lineP = new Vector2[n];   // 평행이동된 선의 한 점
-            var lineD = new Vector2[n];   // 그 선의 방향벡터 (단위)
+            var lineP = new Vector2[n];
+            var lineD = new Vector2[n];
 
             for (int i = 0; i < n; i++)
             {
@@ -151,12 +188,12 @@ namespace TownGen.V2
                 if (len < 1e-6f) { lineP[i] = a; lineD[i] = Vector2.right; continue; }
                 d /= len;
 
-                // 두 후보 법선 중 centroid 쪽
                 Vector2 normal = new Vector2(-d.y, d.x);
                 Vector2 mid = (a + b) * 0.5f;
                 if (Vector2.Dot(centroid - mid, normal) < 0f) normal = -normal;
 
-                lineP[i] = a + normal * inset;
+                float distI = Mathf.Max(0f, insetsPerEdge[i]);
+                lineP[i] = a + normal * distI;
                 lineD[i] = d;
             }
 
@@ -166,7 +203,6 @@ namespace TownGen.V2
             for (int i = 0; i < n; i++)
             {
                 int prev = (i - 1 + n) % n;
-                // prev 선과 i 선의 교점이 새 정점 i
                 Vector2 p1 = lineP[prev], d1 = lineD[prev];
                 Vector2 p2 = lineP[i], d2 = lineD[i];
 
@@ -176,33 +212,40 @@ namespace TownGen.V2
                 }
                 else
                 {
-                    // 평행 → 그냥 평행이동된 점 사용 (fallback)
                     Vector2 fallback = lineP[i];
                     result.Add(new Vector3(fallback.x, yRef, fallback.y));
                 }
             }
 
-            // 3. 결과 검증: 면적이 너무 작거나 부호가 뒤집히면 폐기
+            // 3. 결과 검증
             float origArea = ComputeSignedArea2D(poly);
             float newArea = ComputeSignedArea2D(result);
-
-            // 부호가 다르면 inset이 너무 커서 폴리곤이 뒤집힘
             if (Mathf.Sign(origArea) != Mathf.Sign(newArea)) return new List<Vector3>();
-            // 너무 작으면 의미 없음
             if (Mathf.Abs(newArea) < 0.5f) return new List<Vector3>();
 
-            // 4. 자기교차 검사 (간단: 인접하지 않은 변끼리 교차 있으면 폐기)
+            // 4. 자기교차 검사
             if (HasSelfIntersection(result)) return new List<Vector3>();
 
             return result;
         }
 
         // ─── helpers ───
+        static RoadEdge FindEdgeBetween(RoadGraph g, int aId, int bId)
+        {
+            foreach (var e in g.edges)
+            {
+                if ((e.nodeAId == aId && e.nodeBId == bId) ||
+                    (e.nodeAId == bId && e.nodeBId == aId))
+                    return e;
+            }
+            return null;
+        }
+
         static bool TryIntersect(Vector2 p1, Vector2 d1, Vector2 p2, Vector2 d2, out Vector2 hit)
         {
             hit = default;
             float cross = d1.x * d2.y - d1.y * d2.x;
-            if (Mathf.Abs(cross) < 1e-6f) return false;     // 평행
+            if (Mathf.Abs(cross) < 1e-6f) return false;
             Vector2 dp = p2 - p1;
             float t = (dp.x * d2.y - dp.y * d2.x) / cross;
             hit = p1 + d1 * t;
@@ -231,7 +274,6 @@ namespace TownGen.V2
                 Vector2 a2 = new Vector2(poly[(i + 1) % n].x, poly[(i + 1) % n].z);
                 for (int j = i + 2; j < n; j++)
                 {
-                    // 인접 변 제외 (i와 i+1, 그리고 마지막-첫 번째도 제외)
                     if (i == 0 && j == n - 1) continue;
                     Vector2 b1 = new Vector2(poly[j].x, poly[j].z);
                     Vector2 b2 = new Vector2(poly[(j + 1) % n].x, poly[(j + 1) % n].z);
@@ -252,6 +294,7 @@ namespace TownGen.V2
             float u = (qp.x * r.y - qp.y * r.x) / rxs;
             return t > 1e-4f && t < 1f - 1e-4f && u > 1e-4f && u < 1f - 1e-4f;
         }
+
         // ─────────────────────────────────────────
         // Mesh
         // ─────────────────────────────────────────
@@ -266,7 +309,6 @@ namespace TownGen.V2
 
             if (thickness <= 0.001f)
             {
-                // 평면 (기존 동작)
                 var verts = new Vector3[poly.Count];
                 for (int i = 0; i < poly.Count; i++) verts[i] = poly[i];
                 mesh.vertices = verts;
@@ -274,29 +316,24 @@ namespace TownGen.V2
             }
             else
             {
-                // 두께 있는 prism (윗면 + 아랫면 + 옆면)
                 int n = poly.Count;
                 var verts = new List<Vector3>(n * 2);
-                for (int i = 0; i < n; i++) verts.Add(new Vector3(poly[i].x, poly[i].y + thickness, poly[i].z));   // 0..n-1: top
-                for (int i = 0; i < n; i++) verts.Add(new Vector3(poly[i].x, poly[i].y, poly[i].z));               // n..2n-1: bottom
+                for (int i = 0; i < n; i++) verts.Add(new Vector3(poly[i].x, poly[i].y + thickness, poly[i].z));
+                for (int i = 0; i < n; i++) verts.Add(new Vector3(poly[i].x, poly[i].y, poly[i].z));
 
                 var tris = new List<int>();
-                // 윗면
                 var topTris = PolygonTriangulator.Triangulate(poly);
                 tris.AddRange(topTris);
-                // 아랫면 (반대 방향)
                 for (int i = 0; i < topTris.Length; i += 3)
                 {
                     tris.Add(topTris[i] + n);
                     tris.Add(topTris[i + 2] + n);
                     tris.Add(topTris[i + 1] + n);
                 }
-                // 옆면 (각 변마다 quad 두 삼각형)
                 for (int i = 0; i < n; i++)
                 {
                     int i2 = (i + 1) % n;
                     int tA = i, tB = i2, bA = i + n, bB = i2 + n;
-                    // top facing outward — 두 삼각형
                     tris.Add(tA); tris.Add(bA); tris.Add(bB);
                     tris.Add(tA); tris.Add(bB); tris.Add(tB);
                 }

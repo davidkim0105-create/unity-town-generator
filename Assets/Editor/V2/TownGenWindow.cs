@@ -203,6 +203,11 @@ namespace TownGen.V2.EditorTools
                 ToolButton<RoadBrushTool>(activeAuth, "Brush (⇧B)",
                     "도로 브러시: 드래그로 일정 간격마다 노드+엣지 자동 생성. 단축키: Shift+B");
             }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                ToolButton<SubdivideTool>(activeAuth, "Subdivide (⇧D)",
+                    "블록 분할: 클릭한 블록을 가장 긴 변 기준으로 두 개로 나눔. 단축키: Shift+D");
+            }
 
             if (activeRegion != null)
             {
@@ -248,6 +253,38 @@ namespace TownGen.V2.EditorTools
                         $"Spacing({RoadBrushTool.spacing:F1})이 Snap Distance({RoadBrushTool.snapDistance:F1})보다 작거나 비슷합니다.\n" +
                         $"실제로는 {RoadBrushTool.snapDistance * 1.2f:F1}m 간격으로 그려집니다.",
                         MessageType.Info);
+                }
+            }
+
+            // ─── Subdivide 옵션 ───
+            if (UnityEditor.EditorTools.ToolManager.activeToolType == typeof(SubdivideTool))
+            {
+                EditorGUILayout.Space(4);
+                GUILayout.Label("Subdivide Options", EditorStyles.miniBoldLabel);
+                SubdivideTool.mode = (SubdivideTool.SplitMode)EditorGUILayout.EnumPopup(
+                    GC("Mode",
+                       "LongestOpposite=가장 긴 변 + 마주보는 평행한 변 (사각형에 자연스러움)\n" +
+                       "TwoLongest=가장 긴 두 변 (모양 다양)"),
+                    SubdivideTool.mode);
+                SubdivideTool.minEdgeLength = EditorGUILayout.Slider(
+                    GC("Min Edge Length", "이보다 짧은 변은 분할 후보에서 제외 (작은 블록 보호)"),
+                    SubdivideTool.minEdgeLength, 1f, 30f);
+                SubdivideTool.newRoadWidth = EditorGUILayout.Slider(
+                    GC("New Road Width",
+                       "분할 시 추가되는 도로의 폭(m). Road Inset의 2배 이상을 권장 — 미만이면 양쪽 블록이 거의 붙어 빌딩이 겹쳐 보임."),
+                    SubdivideTool.newRoadWidth, 1f, 10f);
+                SubdivideTool.autoRebuild = EditorGUILayout.Toggle(
+                    GC("Auto Rebuild",
+                       "분할 후 즉시 블록/빌딩/도로메쉬 재생성 (ON 권장)"),
+                    SubdivideTool.autoRebuild);
+
+                if (activeAuth != null && SubdivideTool.newRoadWidth < activeAuth.roadInset * 2f * 0.95f)
+                {
+                    EditorGUILayout.HelpBox(
+                        $"New Road Width({SubdivideTool.newRoadWidth:F1})이 Road Inset({activeAuth.roadInset:F1})의 2배보다 작습니다.\n" +
+                        $"분할된 두 블록 사이 도로가 안 보이고 빌딩이 겹쳐 보일 수 있습니다.\n" +
+                        $"권장: {activeAuth.roadInset * 2f + 0.5f:F1}m 이상",
+                        MessageType.Warning);
                 }
             }
         }
@@ -393,34 +430,50 @@ namespace TownGen.V2.EditorTools
             if (!buildSettingsFoldout) return;
             var a = activeAuth;
 
-            // 도로 폭 기준 권장 인셋
-            float maxHalfW = ComputeMaxRoadHalfWidth(a);
-            float recommended = maxHalfW + 0.2f;
+            // ★ Per-edge inset 토글
+            a.useEdgeWidthForInset = EditorGUILayout.Toggle(
+                GC("Use Edge Width Inset",
+                   "ON(권장): 각 변마다 그 도로의 폭/2 + Margin 만큼 줄임 (자연스러움)\n" +
+                   "OFF: Road Inset 단일 값을 모든 변에 적용 (기존 v2.0 동작)"),
+                a.useEdgeWidthForInset);
 
-            using (new EditorGUILayout.HorizontalScope())
+            if (a.useEdgeWidthForInset)
             {
-                a.roadInset = EditorGUILayout.FloatField(GC("Road Inset",
-                    "face → 블록 줄이는 거리(m). 도로 폭의 절반 이상을 권장 (빌딩이 도로 위로 안 올라옴)"),
-                    a.roadInset);
-
-                if (recommended > 0f && a.roadInset < recommended * 0.95f)
+                a.insetExtraMargin = EditorGUILayout.Slider(
+                    GC("Inset Extra Margin",
+                       "도로 폭/2에 추가로 더하는 여백(m). 0=빌딩이 도로 끝에 닿음, 0.5=약간 여유, 1.5+=넓은 보도"),
+                    a.insetExtraMargin, 0f, 5f);
+                EditorGUILayout.LabelField(
+                    GC("(Road Inset 무시됨)", "Use Edge Width Inset=ON일 때 단일 Road Inset은 사용 안 됨"),
+                    EditorStyles.miniLabel);
+            }
+            else
+            {
+                // 기존 단일 inset UI
+                float maxHalfW = ComputeMaxRoadHalfWidth(a);
+                float recommended = maxHalfW + 0.2f;
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button(GC($"⤴ {recommended:F1}",
-                        $"권장값({recommended:F2}m)으로 자동 설정. 도로 폭 {maxHalfW * 2f:F1}m 기준."),
-                        GUILayout.Width(60)))
+                    a.roadInset = EditorGUILayout.FloatField(GC("Road Inset",
+                        "face → 블록 줄이는 거리(m). 도로 폭의 절반 이상 권장"), a.roadInset);
+                    if (recommended > 0f && a.roadInset < recommended * 0.95f)
                     {
-                        Undo.RecordObject(a, "Set Recommended Inset");
-                        a.roadInset = recommended;
-                        EditorUtility.SetDirty(a);
+                        if (GUILayout.Button(GC($"⤴ {recommended:F1}", $"권장값({recommended:F2}m)으로"),
+                            GUILayout.Width(60)))
+                        {
+                            Undo.RecordObject(a, "Set Recommended Inset");
+                            a.roadInset = recommended;
+                            EditorUtility.SetDirty(a);
+                        }
                     }
                 }
-            }
-            if (recommended > 0f && a.roadInset < recommended * 0.95f)
-            {
-                EditorGUILayout.HelpBox(
-                    $"Road Inset({a.roadInset:F2}m)이 가장 굵은 도로 폭의 절반({maxHalfW:F2}m)보다 작습니다.\n" +
-                    $"빌딩이 도로 위로 침범할 수 있습니다. 권장: {recommended:F2}m",
-                    MessageType.Warning);
+                if (recommended > 0f && a.roadInset < recommended * 0.95f)
+                {
+                    EditorGUILayout.HelpBox(
+                        $"Road Inset({a.roadInset:F2}m) < 가장 굵은 도로 폭의 절반({maxHalfW:F2}m).\n" +
+                        $"권장: {recommended:F2}m",
+                        MessageType.Warning);
+                }
             }
 
             a.blockThickness = EditorGUILayout.Slider(GC("Block Thickness",
@@ -523,7 +576,9 @@ namespace TownGen.V2.EditorTools
                 {
                     Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Build Blocks");
                     BlockBuilder.RebuildAllBlocks(activeAuth, activeAuth.roadInset,
-                        regions: activeRegion, blockThickness: activeAuth.blockThickness);
+                        regions: activeRegion, blockThickness: activeAuth.blockThickness,
+                        useEdgeWidthForInset: activeAuth.useEdgeWidthForInset,
+                        insetExtraMargin: activeAuth.insetExtraMargin);
                     MarkDirty();
                 }
                 if (GUILayout.Button(GC("Fill Buildings", "기존 블록에 빌딩 채움")))
@@ -539,7 +594,9 @@ namespace TownGen.V2.EditorTools
             {
                 Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Build All");
                 BlockBuilder.RebuildAllBlocks(activeAuth, activeAuth.roadInset,
-                    regions: activeRegion, blockThickness: activeAuth.blockThickness);
+                    regions: activeRegion, blockThickness: activeAuth.blockThickness,
+                    useEdgeWidthForInset: activeAuth.useEdgeWidthForInset,
+                    insetExtraMargin: activeAuth.insetExtraMargin);
                 BlockBuilder.FillAllBlocksWithBuildings(activeAuth, activeAuth.buildSettings, activeRegion);
                 if (activeRoadMesh != null) activeRoadMesh.Build();
                 MarkDirty();

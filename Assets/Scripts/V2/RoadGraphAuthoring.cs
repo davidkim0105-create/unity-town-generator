@@ -41,11 +41,17 @@ namespace TownGen.V2
         public float edgeLift = 0.02f;
 
         [Header("Build Settings")]
-        [Tooltip("face → 블록 변환 시 도로 폭만큼 안쪽으로 줄이는 거리 (m)\n• 0: 도로 한가운데까지 블록 차지 (도로 안 보임)\n• 1.5 (기본): 일반 도로 폭 ~3m\n• 3.0+: 넓은 대로\n• 너무 크면: 작은 face는 블록 사라짐")]
+        [Tooltip("face → 블록 변환 시 도로 폭만큼 안쪽으로 줄이는 거리 (m)\n• 0: 도로 한가운데까지 블록 차지 (도로 안 보임)\n• 1.5 (기본): 일반 도로 폭 ~3m\n• 3.0+: 넓은 대로\n• 너무 크면: 작은 face는 블록 사라짐\n• Use Edge Width=ON이면 무시됨")]
         public float roadInset = 1.5f;
 
         [Tooltip("블록 메쉬 두께 (m). 보도블록 솟아오름\n• 0: 평면 (도로와 같은 높이)\n• 0.1 (기본): 살짝 솟아 도시 베이스 강조\n• 1.0+: 큰 단차 (요새/단지 느낌)")]
         public float blockThickness = 0.1f;
+
+        [Tooltip("ON: 각 변마다 그 도로의 폭/2 + Margin 만큼 안쪽으로 줄임 (자연스러운 결과)\nOFF: Road Inset 단일 값을 모든 변에 적용 (기존 v2.0 동작)")]
+        public bool useEdgeWidthForInset = true;
+
+        [Tooltip("Use Edge Width=ON일 때, 도로 폭/2에 추가로 더하는 여백(m).\n빌딩이 도로 가장자리에 너무 붙지 않도록.")]
+        public float insetExtraMargin = 0.5f;
 
         [Tooltip("Region 영역 밖의 블록(=Default)에 사용할 빌딩 세팅")]
         public BuildingFiller.Settings buildSettings = BuildingFiller.DefaultSettings;
