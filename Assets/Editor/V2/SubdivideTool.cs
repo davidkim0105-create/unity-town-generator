@@ -72,6 +72,22 @@ namespace TownGen.V2.EditorTools
                         e.Use();
                     }
                     break;
+
+                case EventType.ScrollWheel:
+                    // Ctrl+휠 = Min Edge Length, Shift+휠 = New Road Width
+                    if (e.control)
+                    {
+                        minEdgeLength = Mathf.Clamp(
+                            minEdgeLength + (-e.delta.y * 0.5f), 1f, 30f);
+                        e.Use();
+                    }
+                    else if (e.shift)
+                    {
+                        newRoadWidth = Mathf.Clamp(
+                            newRoadWidth + (-e.delta.y * 0.2f), 1f, 10f);
+                        e.Use();
+                    }
+                    break;
             }
 
             DrawHandles();
@@ -102,12 +118,14 @@ namespace TownGen.V2.EditorTools
         void DrawOverlay()
         {
             Handles.BeginGUI();
-            GUILayout.BeginArea(new Rect(10, 10, 300, 110), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(10, 10, 320, 130), GUI.skin.box);
             GUILayout.Label("✂ Subdivide", EditorStyles.boldLabel);
             GUILayout.Label($"Mode: {mode}");
             GUILayout.Label($"New Road Width: {newRoadWidth:F1}m   Min Edge: {minEdgeLength:F1}m");
             GUILayout.Label($"Auto Rebuild: {(autoRebuild ? "ON" : "OFF")}");
             GUILayout.Label("Hover block · Click to split", EditorStyles.miniLabel);
+            GUILayout.Label("Ctrl+Wheel=MinEdge · Shift+Wheel=Road Width",
+                EditorStyles.miniLabel);
             GUILayout.EndArea();
             Handles.EndGUI();
         }

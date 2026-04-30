@@ -187,7 +187,7 @@ namespace TownGen.V2.EditorTools
 
         void DrawTools()
         {
-            EditorGUILayout.LabelField("Tools (shortcuts: Shift+Q/W/E/R/T)", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Tools (Shift+Q/W/E/R/T = edit · Shift+Z/X/C/V = build)", EditorStyles.boldLabel);
 
             GUILayout.Label("Road Graph", EditorStyles.miniBoldLabel);
             using (new EditorGUILayout.HorizontalScope())
@@ -200,13 +200,17 @@ namespace TownGen.V2.EditorTools
             {
                 ToolButton<RoadDeleteTool>(activeAuth, "Delete (⇧R)", "엣지/노드 삭제. 단축키: Shift+R");
                 ToolButton<NodeConnectTool>(activeAuth, "Connect (⇧T)", "두 노드 → 합치기. 단축키: Shift+T");
-                ToolButton<RoadBrushTool>(activeAuth, "Brush (⇧B)",
-                    "도로 브러시: 드래그로 일정 간격마다 노드+엣지 자동 생성. 단축키: Shift+B");
+                ToolButton<RoadBrushTool>(activeAuth, "Brush (⇧Z)",
+                    "도로 브러시: 드래그로 일정 간격마다 노드+엣지 자동 생성. 단축키: Shift+Z");
             }
             using (new EditorGUILayout.HorizontalScope())
             {
-                ToolButton<SubdivideTool>(activeAuth, "Subdivide (⇧D)",
-                    "블록 분할: 클릭한 블록을 가장 긴 변 기준으로 두 개로 나눔. 단축키: Shift+D");
+                ToolButton<SubdivideTool>(activeAuth, "Subdivide (⇧X)",
+                    "블록 분할: 클릭한 블록을 가장 긴 변 기준으로 두 개로 나눔. 단축키: Shift+X");
+                ToolButton<LSystemGrowTool>(activeAuth, "L-Grow (⇧C)",
+                    "L-System: 클릭한 위치에서 도시 도로망 자동 성장. 단축키: Shift+C");
+                ToolButton<WidthBrushTool>(activeAuth, "Width (⇧V)",
+                    "도로 폭 브러시: 엣지 클릭/드래그로 폭 변경. Alt+클릭=스포이드. 단축키: Shift+V");
             }
 
             if (activeRegion != null)
@@ -287,22 +291,104 @@ namespace TownGen.V2.EditorTools
                         MessageType.Warning);
                 }
             }
+
+            // ─── L-System 옵션 ───
+            if (UnityEditor.EditorTools.ToolManager.activeToolType == typeof(LSystemGrowTool))
+            {
+                EditorGUILayout.Space(4);
+                GUILayout.Label("L-System Options", EditorStyles.miniBoldLabel);
+                ref var ls = ref LSystemGrowTool.settings;
+                ls.iterations = EditorGUILayout.IntSlider(
+                    GC("Iterations", "성장 단계 수. 높을수록 도시 큼"), ls.iterations, 1, 12);
+                ls.segmentLength = EditorGUILayout.Slider(
+                    GC("Segment Length", "한 단계 도로 길이(m)"), ls.segmentLength, 3f, 30f);
+                ls.segmentLengthJitter = EditorGUILayout.Slider(
+                    GC("Length Jitter", "길이 무작위 ±%"), ls.segmentLengthJitter, 0f, 0.8f);
+                ls.angleJitter = EditorGUILayout.Slider(
+                    GC("Angle Jitter", "방향 무작위 ±°. 0=완전 격자, 30=구불구불"),
+                    ls.angleJitter, 0f, 60f);
+                ls.branchProbability = EditorGUILayout.Slider(
+                    GC("Branch Probability", "분기 확률. 높을수록 가지 많음"),
+                    ls.branchProbability, 0f, 1f);
+                ls.initialBranches = EditorGUILayout.IntSlider(
+                    GC("Initial Branches", "시드에서 출발 방향 수 (1=일자, 2=양쪽, 4=십자, 6=별)"),
+                    ls.initialBranches, 1, 8);
+                ls.roadWidth = EditorGUILayout.Slider(
+                    GC("Road Width", "생성 도로 폭(m)"), ls.roadWidth, 1f, 10f);
+                ls.maxRadius = EditorGUILayout.Slider(
+                    GC("Max Radius", "시드에서 이 거리 안쪽에서만 자람(m)"),
+                    ls.maxRadius, 20f, 300f);
+                ls.snapDistance = EditorGUILayout.Slider(
+                    GC("Snap Distance", "기존 노드/엣지 흡수 거리(m)"),
+                    ls.snapDistance, 0.5f, 10f);
+                ls.seed = EditorGUILayout.IntField(
+                    GC("Seed", "랜덤 시드 (매 클릭마다 자동 +1)"), ls.seed);
+                LSystemGrowTool.autoRebuild = EditorGUILayout.Toggle(
+                    GC("Auto Rebuild", "성장 후 즉시 블록/빌딩/도로메쉬 재생성"),
+                    LSystemGrowTool.autoRebuild);
+                LSystemGenerator.absorbExistingEdges = EditorGUILayout.Toggle(
+                    GC("Absorb Existing Edges",
+                       "OFF(권장): 기존 도로를 분할/흡수하지 않음. 메인 도로(Brush)+골목(L-System) 같이 폭이 다른 도로를 보존.\n" +
+                       "ON: 기존 엣지를 분할해서 자연스럽게 합침."),
+                    LSystemGenerator.absorbExistingEdges);
+            }
+
+            // ─── Width Brush 옵션 ───
+            if (UnityEditor.EditorTools.ToolManager.activeToolType == typeof(WidthBrushTool))
+            {
+                EditorGUILayout.Space(4);
+                GUILayout.Label("Width Brush Options", EditorStyles.miniBoldLabel);
+                WidthBrushTool.targetWidth = EditorGUILayout.Slider(
+                    GC("Target Width",
+                       "적용할 도로 폭(m). Alt+클릭으로 스포이드(기존 엣지 폭 복사) 가능."),
+                    WidthBrushTool.targetWidth, 0.5f, 15f);
+                WidthBrushTool.mode = (WidthBrushTool.BrushMode)EditorGUILayout.EnumPopup(
+                    GC("Mode",
+                       "Click=한 번에 한 엣지\nPaint=드래그로 반경 안 모든 엣지에 적용"),
+                    WidthBrushTool.mode);
+                using (new EditorGUI.DisabledScope(WidthBrushTool.mode != WidthBrushTool.BrushMode.Paint))
+                {
+                    WidthBrushTool.brushRadius = EditorGUILayout.Slider(
+                        GC("Brush Radius",
+                           "Paint 모드: 마우스 주변 이 거리(m) 안의 엣지에 적용"),
+                        WidthBrushTool.brushRadius, 1f, 30f);
+                }
+                WidthBrushTool.autoRebuild = EditorGUILayout.Toggle(
+                    GC("Auto Rebuild",
+                       "변경 후 즉시 블록/빌딩/도로메쉬 재생성 (드래그 페인트 한 스트로크 끝날 때)"),
+                    WidthBrushTool.autoRebuild);
+            }
         }
 
-        // 도구 활성화 버튼
+        // 도구 활성화 버튼 (다시 누르면 해제)
         void ToolButton<T>(Object autoSelect, string label, string tooltip) where T : EditorTool
         {
             bool active = UnityEditor.EditorTools.ToolManager.activeToolType == typeof(T);
             var bg = GUI.backgroundColor;
             if (active) GUI.backgroundColor = new Color(0.6f, 1f, 0.6f);
-            if (GUILayout.Button(GC(label, tooltip), GUILayout.Height(24)))
-            {
-                if (autoSelect is Component c)
-                    Selection.activeGameObject = c.gameObject;
-                else if (autoSelect is GameObject g)
-                    Selection.activeGameObject = g;
 
-                EditorApplication.delayCall += () => UnityEditor.EditorTools.ToolManager.SetActiveTool<T>();
+            // 활성 상태면 라벨에 ✓ 표시 + 툴팁에 해제 안내
+            string finalLabel = active ? $"✓ {label}" : label;
+            string finalTooltip = active
+                ? tooltip + "\n(다시 클릭하면 해제)"
+                : tooltip;
+
+            if (GUILayout.Button(GC(finalLabel, finalTooltip), GUILayout.Height(24)))
+            {
+                if (active)
+                {
+                    // 활성 상태에서 다시 누름 → 해제 (View 도구로 복귀)
+                    EditorApplication.delayCall += () => UnityEditor.Tools.current = Tool.View;
+                }
+                else
+                {
+                    if (autoSelect is Component c)
+                        Selection.activeGameObject = c.gameObject;
+                    else if (autoSelect is GameObject g)
+                        Selection.activeGameObject = g;
+
+                    EditorApplication.delayCall += () => UnityEditor.EditorTools.ToolManager.SetActiveTool<T>();
+                }
             }
             GUI.backgroundColor = bg;
         }
@@ -339,7 +425,52 @@ namespace TownGen.V2.EditorTools
                     Debug.Log($"[TownGen V2] Removed {removed} orphan node(s).");
                 }
             }
+
+            // ─── 도로 폭 통계 + 일괄 변경 ───
+            if (g.edges.Count > 0)
+            {
+                EditorGUILayout.Space(2);
+                float minW = float.MaxValue, maxW = 0f, sumW = 0f;
+                foreach (var ed in g.edges)
+                {
+                    minW = Mathf.Min(minW, ed.width);
+                    maxW = Mathf.Max(maxW, ed.width);
+                    sumW += ed.width;
+                }
+                float avgW = sumW / g.edges.Count;
+                EditorGUILayout.LabelField(
+                    $"Road Width — min: {minW:F1}  avg: {avgW:F1}  max: {maxW:F1}",
+                    EditorStyles.miniLabel);
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(GC("Set All Widths:",
+                        "모든 도로의 폭을 한 번에 변경. 변경 후 Build All 다시 누르세요."),
+                        GUILayout.Width(110));
+                    if (GUILayout.Button("1.5m")) SetAllRoadWidths(g, 1.5f);
+                    if (GUILayout.Button("2m"))   SetAllRoadWidths(g, 2f);
+                    if (GUILayout.Button("3m"))   SetAllRoadWidths(g, 3f);
+                    if (GUILayout.Button("4m"))   SetAllRoadWidths(g, 4f);
+                    if (GUILayout.Button("6m"))   SetAllRoadWidths(g, 6f);
+                }
+
+                // 자유 입력 + Scale 버튼
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(GC("Custom:",
+                        "직접 입력해서 일괄 적용"), GUILayout.Width(60));
+                    customWidth = EditorGUILayout.FloatField(customWidth, GUILayout.Width(60));
+                    if (GUILayout.Button("Apply", GUILayout.Width(60)))
+                        SetAllRoadWidths(g, Mathf.Max(0.1f, customWidth));
+                    if (GUILayout.Button(GC("× 0.7", "현재 폭의 70%로 (전체적으로 얇게)"), GUILayout.Width(50)))
+                        ScaleAllRoadWidths(g, 0.7f);
+                    if (GUILayout.Button(GC("× 1.4", "현재 폭의 140%로 (전체적으로 굵게)"), GUILayout.Width(50)))
+                        ScaleAllRoadWidths(g, 1.4f);
+                }
+            }
         }
+
+        float customWidth = 3f;
 
         void DrawSelectionInfo()
         {
@@ -649,6 +780,24 @@ namespace TownGen.V2.EditorTools
             if (activeRoadMesh != null) EditorUtility.SetDirty(activeRoadMesh);
             SceneView.RepaintAll();
             Repaint();
+        }
+
+        void SetAllRoadWidths(RoadGraph g, float w)
+        {
+            Undo.RegisterCompleteObjectUndo(activeAuth, "Set All Road Widths");
+            foreach (var e in g.edges) e.width = w;
+            activeAuth.InvalidateFaceCache();
+            MarkDirty();
+            Debug.Log($"[TownGen V2] Set all {g.edges.Count} edges to width = {w:F1}m.");
+        }
+
+        void ScaleAllRoadWidths(RoadGraph g, float factor)
+        {
+            Undo.RegisterCompleteObjectUndo(activeAuth, "Scale All Road Widths");
+            foreach (var e in g.edges) e.width = Mathf.Max(0.1f, e.width * factor);
+            activeAuth.InvalidateFaceCache();
+            MarkDirty();
+            Debug.Log($"[TownGen V2] Scaled all road widths by {factor:F2}.");
         }
 
         static float ComputeMaxRoadHalfWidth(RoadGraphAuthoring a)

@@ -84,17 +84,33 @@ namespace TownGen.V2.EditorTools
                         e.Use();
                     }
                     break;
+
+                case EventType.ScrollWheel:
+                    // Ctrl+휠 = Spacing, Shift+휠 = Road Width
+                    if (e.control)
+                    {
+                        spacing = Mathf.Clamp(spacing + (-e.delta.y * 0.5f), 1f, 30f);
+                        e.Use();
+                    }
+                    else if (e.shift)
+                    {
+                        roadWidth = Mathf.Clamp(roadWidth + (-e.delta.y * 0.3f), 1f, 20f);
+                        e.Use();
+                    }
+                    break;
             }
 
             DrawHandles(e);
 
             // 정보 오버레이
             Handles.BeginGUI();
-            GUILayout.BeginArea(new Rect(10, 10, 280, 90), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(10, 10, 320, 110), GUI.skin.box);
             GUILayout.Label("🖌 Road Brush", EditorStyles.boldLabel);
             GUILayout.Label($"Spacing: {spacing:F1}m   Width: {roadWidth:F1}m");
             GUILayout.Label($"Snap to Existing: {(snapToExisting ? "ON" : "OFF")} ({snapDistance:F1}m)");
             GUILayout.Label("Drag to paint · Shift=45° · Ctrl=1m grid · Esc=cancel",
+                EditorStyles.miniLabel);
+            GUILayout.Label("Ctrl+Wheel=Spacing · Shift+Wheel=Road Width",
                 EditorStyles.miniLabel);
             GUILayout.EndArea();
             Handles.EndGUI();
