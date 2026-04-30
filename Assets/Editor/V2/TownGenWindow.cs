@@ -200,6 +200,8 @@ namespace TownGen.V2.EditorTools
             {
                 ToolButton<RoadDeleteTool>(activeAuth, "Delete (⇧R)", "엣지/노드 삭제. 단축키: Shift+R");
                 ToolButton<NodeConnectTool>(activeAuth, "Connect (⇧T)", "두 노드 → 합치기. 단축키: Shift+T");
+                ToolButton<RoadBrushTool>(activeAuth, "Brush (⇧B)",
+                    "도로 브러시: 드래그로 일정 간격마다 노드+엣지 자동 생성. 단축키: Shift+B");
             }
 
             if (activeRegion != null)
@@ -213,12 +215,41 @@ namespace TownGen.V2.EditorTools
                 }
             }
 
-            GUILayout.Space(4);
+           GUILayout.Space(4);
             EditorGUILayout.HelpBox(
                 UnityEditor.EditorTools.ToolManager.activeToolType != null
                     ? $"Active tool: {UnityEditor.EditorTools.ToolManager.activeToolType.Name}"
                     : "No active tool",
                 MessageType.None);
+
+            // ─── Road Brush 옵션 (활성일 때만) ───
+            if (UnityEditor.EditorTools.ToolManager.activeToolType == typeof(RoadBrushTool))
+            {
+                EditorGUILayout.Space(4);
+                GUILayout.Label("Brush Options", EditorStyles.miniBoldLabel);
+                RoadBrushTool.spacing = EditorGUILayout.Slider(
+                    GC("Spacing", "노드 간격(m). 작게=촘촘, 크게=드물게"),
+                    RoadBrushTool.spacing, 1f, 30f);
+                RoadBrushTool.roadWidth = EditorGUILayout.Slider(
+                    GC("Road Width", "그릴 도로의 폭(m)"),
+                    RoadBrushTool.roadWidth, 1f, 20f);
+                RoadBrushTool.snapToExisting = EditorGUILayout.Toggle(
+                    GC("Snap to Existing", "근처 노드/엣지에 자동 합치기"),
+                    RoadBrushTool.snapToExisting);
+                using (new EditorGUI.DisabledScope(!RoadBrushTool.snapToExisting))
+                {
+                    RoadBrushTool.snapDistance = EditorGUILayout.Slider(
+                        GC("Snap Distance", "이 거리 안에 기존 노드/엣지가 있으면 합침"),
+                        RoadBrushTool.snapDistance, 0.5f, 10f);
+                }
+                if (RoadBrushTool.snapToExisting && RoadBrushTool.spacing < RoadBrushTool.snapDistance * 1.2f)
+                {
+                    EditorGUILayout.HelpBox(
+                        $"Spacing({RoadBrushTool.spacing:F1})이 Snap Distance({RoadBrushTool.snapDistance:F1})보다 작거나 비슷합니다.\n" +
+                        $"실제로는 {RoadBrushTool.snapDistance * 1.2f:F1}m 간격으로 그려집니다.",
+                        MessageType.Info);
+                }
+            }
         }
 
         // 도구 활성화 버튼
@@ -254,6 +285,22 @@ namespace TownGen.V2.EditorTools
             {
                 var issues = GraphValidator.Validate(g);
                 Debug.Log(GraphValidator.FormatReport(issues));
+            }
+
+            // 외톨이 노드(degree=0) 개수 표시 + 제거 버튼
+            int orphanCount = CountOrphanNodes(g);
+            using (new EditorGUI.DisabledScope(orphanCount == 0))
+            {
+                if (GUILayout.Button(GC(
+                    orphanCount > 0 ? $"🗑 Remove Orphan Nodes ({orphanCount})" : "🗑 Remove Orphan Nodes (none)",
+                    "어떤 엣지에도 연결되지 않은 외톨이 노드를 모두 삭제")))
+                {
+                    Undo.RegisterCompleteObjectUndo(activeAuth, "Remove Orphan Nodes");
+                    int removed = RemoveOrphanNodes(g);
+                    activeAuth.InvalidateFaceCache();
+                    MarkDirty();
+                    Debug.Log($"[TownGen V2] Removed {removed} orphan node(s).");
+                }
             }
         }
 
@@ -554,6 +601,33 @@ namespace TownGen.V2.EditorTools
             foreach (var e in a.graph.edges)
                 maxHalf = Mathf.Max(maxHalf, e.width * 0.5f);
             return maxHalf;
+        }
+
+        static int CountOrphanNodes(RoadGraph g)
+        {
+            if (g == null || g.nodes == null) return 0;
+            int count = 0;
+            foreach (var n in g.nodes)
+                if (n.edgeIds == null || n.edgeIds.Count == 0) count++;
+            return count;
+        }
+
+        static int RemoveOrphanNodes(RoadGraph g)
+        {
+            if (g == null || g.nodes == null) return 0;
+            // 뒤에서부터 제거 (인덱스 안전)
+            int removed = 0;
+            for (int i = g.nodes.Count - 1; i >= 0; i--)
+            {
+                var n = g.nodes[i];
+                if (n.edgeIds == null || n.edgeIds.Count == 0)
+                {
+                    g.nodes.RemoveAt(i);
+                    removed++;
+                }
+            }
+            if (removed > 0) g.InvalidateCache();
+            return removed;
         }
 
         // 테스트 그래프

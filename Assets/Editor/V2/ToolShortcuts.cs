@@ -24,6 +24,9 @@ namespace TownGen.V2.EditorTools
         [Shortcut("TownGen V2/Tool: Connect", KeyCode.T, MOD)]
         static void ActivateConnect() => SafeActivate<NodeConnectTool>();
 
+        [Shortcut("TownGen V2/Tool: Brush",   KeyCode.B, MOD)]
+        static void ActivateBrush()   => SafeActivate<RoadBrushTool>();
+
         static void SafeActivate<T>() where T : EditorTool
         {
             var go = Selection.activeGameObject;
