@@ -18,6 +18,7 @@ namespace TownGen.V2.EditorTools
         // ─── 활성 컨텍스트 ───
         RoadGraphAuthoring activeAuth;
         RegionAuthoring activeRegion;
+        RoadMeshAuthoring activeRoadMesh;          // ★ 추가
         bool autoFollowSelection = true;
 
         Vector2 scroll;
@@ -40,10 +41,7 @@ namespace TownGen.V2.EditorTools
             UnityEditor.EditorTools.ToolManager.activeToolChanged -= OnActiveToolChanged;
         }
 
-        void OnActiveToolChanged()
-        {
-            Repaint();
-        }
+        void OnActiveToolChanged() { Repaint(); }
 
         void OnSelectionChanged()
         {
@@ -64,7 +62,7 @@ namespace TownGen.V2.EditorTools
             var auth = go.GetComponent<RoadGraphAuthoring>()
                      ?? go.GetComponentInParent<RoadGraphAuthoring>()
                      ?? go.GetComponentInChildren<RoadGraphAuthoring>();
-            if (auth != null) activeAuth = auth;
+            if (auth != null) { activeAuth = auth; activeRoadMesh = null; }
 
             var reg = go.GetComponent<RegionAuthoring>()
                     ?? go.GetComponentInParent<RegionAuthoring>()
@@ -73,6 +71,8 @@ namespace TownGen.V2.EditorTools
 
             if (activeRegion == null && activeAuth != null)
                 activeRegion = FindRegionFor(activeAuth);
+
+            EnsureRoadMesh();
         }
 
         void RefreshActive()
@@ -81,6 +81,21 @@ namespace TownGen.V2.EditorTools
                 activeAuth = Object.FindAnyObjectByType<RoadGraphAuthoring>();
             if (activeRegion == null && activeAuth != null)
                 activeRegion = FindRegionFor(activeAuth);
+            EnsureRoadMesh();
+        }
+
+        /// <summary>
+        /// activeAuth와 같은 GameObject에서 RoadMeshAuthoring을 찾고, 없으면 자동 추가.
+        /// </summary>
+        void EnsureRoadMesh()
+        {
+            if (activeAuth == null) { activeRoadMesh = null; return; }
+            activeRoadMesh = activeAuth.GetComponent<RoadMeshAuthoring>();
+            // 자동 생성 (사용자가 따로 추가 안 해도 됨)
+            if (activeRoadMesh == null)
+            {
+                activeRoadMesh = Undo.AddComponent<RoadMeshAuthoring>(activeAuth.gameObject);
+            }
         }
 
         static RegionAuthoring FindRegionFor(RoadGraphAuthoring auth)
@@ -116,6 +131,8 @@ namespace TownGen.V2.EditorTools
             EditorGUILayout.Space();
             DrawBuildSettings();
             EditorGUILayout.Space();
+            DrawRoadMeshSection();         // ★ 추가
+            EditorGUILayout.Space();
             DrawBuildButtons();
             EditorGUILayout.Space();
             DrawDocSection();
@@ -131,7 +148,7 @@ namespace TownGen.V2.EditorTools
                 EditorGUILayout.LabelField("RoadGraph", GUILayout.Width(80));
                 var newAuth = (RoadGraphAuthoring)EditorGUILayout.ObjectField(
                     activeAuth, typeof(RoadGraphAuthoring), true);
-                if (newAuth != activeAuth) { activeAuth = newAuth; activeRegion = null; RefreshActive(); }
+                if (newAuth != activeAuth) { activeAuth = newAuth; activeRegion = null; activeRoadMesh = null; RefreshActive(); }
             }
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -168,7 +185,7 @@ namespace TownGen.V2.EditorTools
             }
         }
 
-       void DrawTools()
+        void DrawTools()
         {
             EditorGUILayout.LabelField("Tools (shortcuts: Shift+Q/W/E/R/T)", EditorStyles.boldLabel);
 
@@ -204,7 +221,7 @@ namespace TownGen.V2.EditorTools
                 MessageType.None);
         }
 
-        // 도구 활성화 버튼 (target 자동 선택 + EditorTools.SetActiveTool)
+        // 도구 활성화 버튼
         void ToolButton<T>(Object autoSelect, string label, string tooltip) where T : EditorTool
         {
             bool active = UnityEditor.EditorTools.ToolManager.activeToolType == typeof(T);
@@ -233,7 +250,7 @@ namespace TownGen.V2.EditorTools
             EditorGUILayout.LabelField($"Faces: inner={inner}, outer={outer}");
             EditorGUILayout.LabelField($"Regions: {(activeRegion != null ? activeRegion.regions.Count.ToString() : "(none)")}");
 
-            if (GUILayout.Button(GC("Validate Graph", "그래프 무결성 검사 (자기교차/중복/고립 노드 등). 결과는 Console에")))
+            if (GUILayout.Button(GC("Validate Graph", "그래프 무결성 검사. 결과는 Console에")))
             {
                 var issues = GraphValidator.Validate(g);
                 Debug.Log(GraphValidator.FormatReport(issues));
@@ -244,13 +261,8 @@ namespace TownGen.V2.EditorTools
         {
             var go = Selection.activeGameObject;
             if (go == null) return;
-
             var auth = go.GetComponentInParent<RoadGraphAuthoring>();
             if (auth == null || auth != activeAuth) return;
-
-            // (간단 버전) Move 도구가 활성이고 마우스 밑에 노드가 있을 때만 정보 표시.
-            // 정확히는 NodeMoveTool의 selected 집합에 접근해야 하지만,
-            // 여기서는 그래프 통계 정도만 빠르게.
             EditorGUILayout.LabelField("Selection / Hover", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("(Use Scene view; details shown there)", EditorStyles.miniLabel);
         }
@@ -269,22 +281,19 @@ namespace TownGen.V2.EditorTools
             GUILayout.Label("Auto Generators", EditorStyles.miniBoldLabel);
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(GC("Radial", "방사형 도로 (중심 + 환상). spoke=8, ring=3"))) {
+                if (GUILayout.Button(GC("Radial", "방사형 도로 (중심 + 환상)"))) {
                     Undo.RegisterCompleteObjectUndo(activeAuth, "Build Radial");
-                    AutoGraphPresets.BuildRadial(activeAuth);
-                    MarkDirty();
+                    AutoGraphPresets.BuildRadial(activeAuth); MarkDirty();
                 }
                 if (GUILayout.Button(GC("Hex Loop", "정육각형 외곽 도로 (face 1)"))) {
                     Undo.RegisterCompleteObjectUndo(activeAuth, "Build Hex");
-                    AutoGraphPresets.BuildPolygonLoop(activeAuth, 6, 25f);
-                    MarkDirty();
+                    AutoGraphPresets.BuildPolygonLoop(activeAuth, 6, 25f); MarkDirty();
                 }
                 if (GUILayout.Button(GC("Octagon", "정팔각형 외곽 (face 1)"))) {
                     Undo.RegisterCompleteObjectUndo(activeAuth, "Build Octagon");
-                    AutoGraphPresets.BuildPolygonLoop(activeAuth, 8, 25f);
-                    MarkDirty();
+                    AutoGraphPresets.BuildPolygonLoop(activeAuth, 8, 25f); MarkDirty();
                 }
-                if (GUILayout.Button(GC("Jittered 5x5", "5x5 격자에 랜덤 흔들림 (자연스러움)"))) {
+                if (GUILayout.Button(GC("Jittered 5x5", "5x5 격자에 랜덤 흔들림"))) {
                     Undo.RegisterCompleteObjectUndo(activeAuth, "Build Jittered");
                     AutoGraphPresets.BuildJitteredGrid(activeAuth, 5, 10f, 2f, Random.Range(0, 99999));
                     MarkDirty();
@@ -303,22 +312,28 @@ namespace TownGen.V2.EditorTools
                 { Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Clear Buildings"); BlockBuilder.ClearAllBuildings(activeAuth); MarkDirty(); }
                 if (GUILayout.Button(GC("Blocks", "블록 + 빌딩 삭제")))
                 { Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Clear Blocks"); BlockBuilder.ClearAllBlocks(activeAuth); MarkDirty(); }
-                if (GUILayout.Button(GC("ALL", "그래프+블록+빌딩+Region 폴리곤 모두 (Region 정의는 보존)")))
+                if (GUILayout.Button(GC("Road Mesh", "도로/교차로 메쉬만 삭제")))
+                {
+                    if (activeRoadMesh != null)
+                    {
+                        Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Clear Road Mesh");
+                        activeRoadMesh.Clear(); MarkDirty();
+                    }
+                }
+                if (GUILayout.Button(GC("ALL", "그래프+블록+빌딩+도로메쉬+Region 폴리곤 모두")))
                 {
                     Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Clear All");
                     BlockBuilder.ClearAllBuildings(activeAuth);
                     BlockBuilder.ClearAllBlocks(activeAuth);
+                    if (activeRoadMesh != null) activeRoadMesh.Clear();
                     activeAuth.graph.Clear();
                     activeAuth.InvalidateFaceCache();
-
-                    // Region 폴리곤도 같이 비움 (정의는 보존)
                     if (activeRegion != null)
                     {
                         Undo.RegisterCompleteObjectUndo(activeRegion, "Clear All");
                         foreach (var r in activeRegion.regions) r.polygon.Clear();
                         EditorUtility.SetDirty(activeRegion);
                     }
-
                     MarkDirty();
                 }
             }
@@ -331,8 +346,36 @@ namespace TownGen.V2.EditorTools
             if (!buildSettingsFoldout) return;
             var a = activeAuth;
 
-            a.roadInset = EditorGUILayout.FloatField(GC("Road Inset",
-                "face → 블록 줄이는 거리(m). 0=도로 한가운데까지, 1.5=일반 도로, 3+=대로"), a.roadInset);
+            // 도로 폭 기준 권장 인셋
+            float maxHalfW = ComputeMaxRoadHalfWidth(a);
+            float recommended = maxHalfW + 0.2f;
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                a.roadInset = EditorGUILayout.FloatField(GC("Road Inset",
+                    "face → 블록 줄이는 거리(m). 도로 폭의 절반 이상을 권장 (빌딩이 도로 위로 안 올라옴)"),
+                    a.roadInset);
+
+                if (recommended > 0f && a.roadInset < recommended * 0.95f)
+                {
+                    if (GUILayout.Button(GC($"⤴ {recommended:F1}",
+                        $"권장값({recommended:F2}m)으로 자동 설정. 도로 폭 {maxHalfW * 2f:F1}m 기준."),
+                        GUILayout.Width(60)))
+                    {
+                        Undo.RecordObject(a, "Set Recommended Inset");
+                        a.roadInset = recommended;
+                        EditorUtility.SetDirty(a);
+                    }
+                }
+            }
+            if (recommended > 0f && a.roadInset < recommended * 0.95f)
+            {
+                EditorGUILayout.HelpBox(
+                    $"Road Inset({a.roadInset:F2}m)이 가장 굵은 도로 폭의 절반({maxHalfW:F2}m)보다 작습니다.\n" +
+                    $"빌딩이 도로 위로 침범할 수 있습니다. 권장: {recommended:F2}m",
+                    MessageType.Warning);
+            }
+
             a.blockThickness = EditorGUILayout.Slider(GC("Block Thickness",
                 "블록 메쉬 두께(m). 0=평면, 0.1=보도블록, 1+=단차"), a.blockThickness, 0f, 5f);
 
@@ -340,25 +383,89 @@ namespace TownGen.V2.EditorTools
             a.buildSettings.mode = (BuildingFiller.FillMode)EditorGUILayout.EnumPopup(
                 GC("Fill Mode", "GridOBB=격자 채움, RoadFacing=도로변 정렬"), a.buildSettings.mode);
             a.buildSettings.lotSize = EditorGUILayout.FloatField(
-                GC("Lot Size", "빌딩 한 칸 폭(m). 작게=많이, 크게=적게"), a.buildSettings.lotSize);
+                GC("Lot Size", "빌딩 한 칸 폭(m)"), a.buildSettings.lotSize);
             if (a.buildSettings.mode == BuildingFiller.FillMode.RoadFacing)
             {
                 a.buildSettings.lotDepth = EditorGUILayout.FloatField(
-                    GC("Lot Depth", "빌딩 깊이(m). 작게=얇은 빌딩, 크게=두꺼운 빌딩"), a.buildSettings.lotDepth);
+                    GC("Lot Depth", "빌딩 깊이(m)"), a.buildSettings.lotDepth);
                 a.buildSettings.fillInteriorRows = EditorGUILayout.Toggle(
-                    GC("Fill Interior Rows", "도로변 1줄(off) vs 안쪽 3줄(on)"), a.buildSettings.fillInteriorRows);
+                    GC("Fill Interior Rows", "도로변 1줄 vs 안쪽 3줄"), a.buildSettings.fillInteriorRows);
             }
             a.buildSettings.lotMargin = EditorGUILayout.Slider(
-                GC("Lot Margin", "칸 안 빌딩 차지 비율(0~0.6). 0=다닥다닥, 0.5=느슨"),
-                a.buildSettings.lotMargin, 0f, 0.6f);
-            a.buildSettings.minHeight = EditorGUILayout.FloatField(
-                GC("Min Height", "최소 높이(m)"), a.buildSettings.minHeight);
-            a.buildSettings.maxHeight = EditorGUILayout.FloatField(
-                GC("Max Height", "최대 높이(m). 빌딩 키 = min~max 랜덤"), a.buildSettings.maxHeight);
-            a.buildSettings.density = EditorGUILayout.Slider(
-                GC("Density", "빌딩 생성 확률(0~1). 1=모두, 0.5=듬성"), a.buildSettings.density, 0f, 1f);
-            a.buildSettings.seed = EditorGUILayout.IntField(
-                GC("Seed", "랜덤 시드. 같은 값 = 같은 결과"), a.buildSettings.seed);
+                GC("Lot Margin", "칸 안 빌딩 차지 비율"), a.buildSettings.lotMargin, 0f, 0.6f);
+            a.buildSettings.minHeight = EditorGUILayout.FloatField(GC("Min Height", "최소 높이(m)"), a.buildSettings.minHeight);
+            a.buildSettings.maxHeight = EditorGUILayout.FloatField(GC("Max Height", "최대 높이(m)"), a.buildSettings.maxHeight);
+            a.buildSettings.density = EditorGUILayout.Slider(GC("Density", "생성 확률"), a.buildSettings.density, 0f, 1f);
+            a.buildSettings.seed = EditorGUILayout.IntField(GC("Seed", "랜덤 시드"), a.buildSettings.seed);
+        }
+
+        // ─── Road Mesh 섹션 ───
+        bool roadMeshFoldout = true;
+        void DrawRoadMeshSection()
+        {
+            roadMeshFoldout = EditorGUILayout.Foldout(roadMeshFoldout, "Road Mesh", true);
+            if (!roadMeshFoldout) return;
+
+            if (activeRoadMesh == null)
+            {
+                if (GUILayout.Button("Add RoadMeshAuthoring"))
+                {
+                    activeRoadMesh = Undo.AddComponent<RoadMeshAuthoring>(activeAuth.gameObject);
+                }
+                return;
+            }
+
+            var rm = activeRoadMesh;
+            EditorGUI.BeginChangeCheck();
+
+            rm.roadMaterial = (Material)EditorGUILayout.ObjectField(
+                GC("Road Material", "도로 머티리얼 (없으면 회색 기본)"),
+                rm.roadMaterial, typeof(Material), false);
+            rm.intersectionMaterial = (Material)EditorGUILayout.ObjectField(
+                GC("Intersection Mat", "교차로 머티리얼 (없으면 도로 머티리얼 재사용)"),
+                rm.intersectionMaterial, typeof(Material), false);
+
+            rm.roadYOffset = EditorGUILayout.Slider(
+                GC("Road Y Offset", "도로 메쉬 높이 (z-fighting 방지)"),
+                rm.roadYOffset, 0f, 0.5f);
+            rm.intersectionYOffset = EditorGUILayout.Slider(
+                GC("Intersection Y Offset", "교차로는 도로보다 위에 있어야 잘 덮임"),
+                rm.intersectionYOffset, 0f, 0.5f);
+
+            rm.trimRoadEnds = EditorGUILayout.Toggle(
+                GC("Trim Road Ends", "교차로 영역만큼 도로 끝을 잘라 깔끔하게 마감"),
+                rm.trimRoadEnds);
+            using (new EditorGUI.DisabledScope(!rm.trimRoadEnds))
+            {
+                rm.trimPadding = EditorGUILayout.Slider(
+                    GC("Trim Padding", "트림 반경 배수"),
+                    rm.trimPadding, 0.5f, 2f);
+                rm.intersectionCoverage = EditorGUILayout.Slider(
+                    GC("Intersection Coverage", "교차로가 도로 경계와 겹치는 정도 (빈틈 방지)"),
+                    rm.intersectionCoverage, 1f, 1.5f);
+            }
+            rm.intersectionSegments = EditorGUILayout.IntSlider(
+                GC("Intersection Segments", "교차로 원반 분할 수"),
+                rm.intersectionSegments, 4, 32);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                EditorUtility.SetDirty(rm);
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(GC("Build Road Mesh", "도로/교차로 메쉬 생성"), GUILayout.Height(24)))
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Build Road Mesh");
+                    rm.Build(); MarkDirty();
+                }
+                if (GUILayout.Button(GC("Clear", "도로/교차로 메쉬 삭제"), GUILayout.Width(60), GUILayout.Height(24)))
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Clear Road Mesh");
+                    rm.Clear(); MarkDirty();
+                }
+            }
         }
 
         void DrawBuildButtons()
@@ -379,13 +486,15 @@ namespace TownGen.V2.EditorTools
                     MarkDirty();
                 }
             }
-            if (GUILayout.Button(GC("⚡ Build Blocks + Fill Buildings", "한 번에 모두 생성"),
-                GUILayout.Height(30)))
+            if (GUILayout.Button(GC("⚡ Build All (Blocks + Buildings + Road Mesh)",
+                "한 번에 모두 생성: 블록 → 빌딩 → 도로/교차로 메쉬"),
+                GUILayout.Height(34)))
             {
                 Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Build All");
                 BlockBuilder.RebuildAllBlocks(activeAuth, activeAuth.roadInset,
                     regions: activeRegion, blockThickness: activeAuth.blockThickness);
                 BlockBuilder.FillAllBlocksWithBuildings(activeAuth, activeAuth.buildSettings, activeRegion);
+                if (activeRoadMesh != null) activeRoadMesh.Build();
                 MarkDirty();
             }
         }
@@ -417,6 +526,7 @@ namespace TownGen.V2.EditorTools
             Undo.RegisterCreatedObjectUndo(go, "Create Road Graph");
             activeAuth = go.GetComponent<RoadGraphAuthoring>();
             Selection.activeGameObject = go;
+            EnsureRoadMesh();   // ★ 자동으로 RoadMesh도
         }
 
         void CreateRegions()
@@ -432,8 +542,18 @@ namespace TownGen.V2.EditorTools
         {
             if (activeAuth != null) EditorUtility.SetDirty(activeAuth);
             if (activeRegion != null) EditorUtility.SetDirty(activeRegion);
+            if (activeRoadMesh != null) EditorUtility.SetDirty(activeRoadMesh);
             SceneView.RepaintAll();
             Repaint();
+        }
+
+        static float ComputeMaxRoadHalfWidth(RoadGraphAuthoring a)
+        {
+            if (a == null || a.graph == null) return 0f;
+            float maxHalf = 0f;
+            foreach (var e in a.graph.edges)
+                maxHalf = Mathf.Max(maxHalf, e.width * 0.5f);
+            return maxHalf;
         }
 
         // 테스트 그래프
