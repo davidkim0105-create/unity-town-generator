@@ -29,6 +29,9 @@ namespace TownGen.V2.EditorTools
         BuildingPresetV2 buildingPresetSlot;
         LSystemPresetV2 lsystemPresetSlot;
 
+        // ─── OSM Import 옵션 ───
+        TownGen.V2.OSM.OSMImporter.ImportOptions osmOptions = new TownGen.V2.OSM.OSMImporter.ImportOptions();
+
         // ─── Foldout 상태 (EditorPrefs로 영속) ───
         bool foldHeader        => GetFold("header", true);
         bool foldTools         => GetFold("tools", true);
@@ -231,6 +234,20 @@ namespace TownGen.V2.EditorTools
             if (DrawSectionFoldout("doc", "💾 Document / Capture", false))
             {
                 DrawDocSection();
+            }
+            EditorGUILayout.Space();
+
+            // ── OSM Import (가끔) ──
+            if (DrawSectionFoldout("osm", "🌐 OSM Import", false))
+            {
+                DrawOSMSection();
+            }
+            EditorGUILayout.Space();
+
+            // ── Lighting (가끔) ──
+            if (DrawSectionFoldout("light", "🌙 Lighting Preset", false))
+            {
+                DrawLightingSection();
             }
 
             EditorGUILayout.EndScrollView();
@@ -1121,6 +1138,89 @@ using (new EditorGUILayout.HorizontalScope())
             if (activeRoadMesh != null) EditorUtility.SetDirty(activeRoadMesh);
             SceneView.RepaintAll();
             Repaint();
+        }
+
+        Color nightEmissionColor = new Color(1f, 0.85f, 0.5f);
+
+        void DrawOSMSection()
+        {
+            EditorGUILayout.HelpBox(
+                "OSM(.osm) 파일을 RoadGraph로 변환합니다.\n" +
+                "1) https://www.openstreetmap.org 에서 영역 선택 → Export → .osm 다운로드\n" +
+                "2) 또는 https://overpass-turbo.eu 에서 쿼리 후 다운로드\n" +
+                "3) 너무 큰 영역은 노드 수만 개 → 작은 동네 단위 권장",
+                MessageType.Info);
+
+            osmOptions.clearGraphFirst = EditorGUILayout.Toggle(
+                GC("Clear Graph First", "임포트 전 기존 그래프 삭제"),
+                osmOptions.clearGraphFirst);
+            osmOptions.useOSMRoadWidths = EditorGUILayout.Toggle(
+                GC("Use OSM Road Widths",
+                   "ON: highway 태그(motorway/residential/footway 등)에 따라 자동 폭\nOFF: 모두 Default Width"),
+                osmOptions.useOSMRoadWidths);
+            using (new EditorGUI.DisabledScope(osmOptions.useOSMRoadWidths))
+            {
+                osmOptions.defaultWidth = EditorGUILayout.Slider(
+                    GC("Default Width", "Use OSM Widths=OFF일 때 적용할 폭(m)"),
+                    osmOptions.defaultWidth, 1f, 10f);
+            }
+            osmOptions.scaleFactor = EditorGUILayout.Slider(
+                GC("Scale Factor",
+                   "1.0=실제 크기, 0.5=절반, 0.1=1/10. 큰 도시 미니어처용"),
+                osmOptions.scaleFactor, 0.05f, 2f);
+            osmOptions.excludeFootways = EditorGUILayout.Toggle(
+                GC("Exclude Footways", "footway/path/cycleway/pedestrian 제외 (간단한 도로망만)"),
+                osmOptions.excludeFootways);
+
+            EditorGUILayout.Space(4);
+            if (GUILayout.Button(GC("📂 Import .osm File...",
+                "OSM 파일 선택 → 그래프 변환"), GUILayout.Height(28)))
+            {
+                string path = EditorUtility.OpenFilePanel("Select OSM file", Application.dataPath, "osm");
+                if (!string.IsNullOrEmpty(path))
+                {
+                    Undo.RegisterCompleteObjectUndo(activeAuth, "OSM Import");
+                    var result = TownGen.V2.OSM.OSMImporter.Import(path, activeAuth, osmOptions);
+                    Debug.Log("[OSM] " + result.summary);
+                    EditorUtility.DisplayDialog("OSM Import", result.summary, "OK");
+                    MarkDirty();
+                }
+            }
+            EditorGUILayout.HelpBox(
+                "임포트 후 [Build All]을 누르면 블록과 빌딩이 자동 생성됩니다.\n" +
+                "OSM 도로망이 매우 복잡하면 Validate Graph로 무결성 확인 권장.",
+                MessageType.None);
+        }
+
+        void DrawLightingSection()
+        {
+            EditorGUILayout.LabelField("Scene Lighting", EditorStyles.miniBoldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(GC("☀ Day Preset", "주간 라이팅 (밝은 흰빛)"),
+                    GUILayout.Height(28)))
+                {
+                    NightPreset.Apply(NightPreset.Mode.Day);
+                    NightPreset.ApplyBuildingEmission(activeAuth, false, Color.black);
+                    SceneView.RepaintAll();
+                }
+                if (GUILayout.Button(GC("🌙 Night Preset",
+                    "야경 라이팅 (어두운 파랑) + 빌딩 emission ON"),
+                    GUILayout.Height(28)))
+                {
+                    NightPreset.Apply(NightPreset.Mode.Night);
+                    NightPreset.ApplyBuildingEmission(activeAuth, true, nightEmissionColor);
+                    SceneView.RepaintAll();
+                }
+            }
+            nightEmissionColor = EditorGUILayout.ColorField(
+                GC("Night Emission Color",
+                   "야경 시 빌딩 emission 색 (창문 빛). 따뜻한 노랑/주황 추천"),
+                nightEmissionColor);
+            EditorGUILayout.HelpBox(
+                "Day/Night 토글은 Scene의 Directional Light + Ambient를 변경합니다.\n" +
+                "Night는 추가로 모든 빌딩 머티리얼에 emission을 켭니다 (창문 효과).",
+                MessageType.Info);
         }
 
         void SetAllRoadWidths(RoadGraph g, float w)
