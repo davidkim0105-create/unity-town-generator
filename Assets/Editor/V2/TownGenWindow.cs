@@ -218,6 +218,13 @@ namespace TownGen.V2.EditorTools
                 ToolButton<WidthBrushTool>(activeAuth, "Width (⇧V)",
                     "도로 폭 브러시: 엣지 클릭/드래그로 폭 변경. Alt+클릭=스포이드. 단축키: Shift+V");
             }
+using (new EditorGUILayout.HorizontalScope())
+            {
+                ToolButton<VoronoiTool>(activeAuth, "Voronoi (⇧F)",
+                    "시드 점 클릭 → Voronoi 자동 영역 분할. 단축키: Shift+F");
+                ToolButton<BlockInspectorTool>(activeAuth, "Inspect (⇧A)",
+                    "블록 호버로 면적/빌딩 수/Region 정보 표시. 클릭하면 그 블록 선택. 단축키: Shift+A");
+            }
 
             if (activeRegion != null)
             {
@@ -379,6 +386,79 @@ namespace TownGen.V2.EditorTools
                        "변경 후 즉시 블록/빌딩/도로메쉬 재생성 (드래그 페인트 한 스트로크 끝날 때)"),
                     WidthBrushTool.autoRebuild);
             }
+
+            // ─── Voronoi Options ───
+            if (UnityEditor.EditorTools.ToolManager.activeToolType == typeof(VoronoiTool))
+            {
+                EditorGUILayout.Space(4);
+                GUILayout.Label("Voronoi Options", EditorStyles.miniBoldLabel);
+
+                EditorGUILayout.LabelField($"Seeds: {VoronoiTool.seeds.Count}",
+                    EditorStyles.miniLabel);
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    VoronoiTool.randomSeedCount = EditorGUILayout.IntSlider(
+                        GC("Random Count", "[Random Place] 시 생성할 시드 수"),
+                        VoronoiTool.randomSeedCount, 2, 30);
+                }
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button(GC("🎲 Random Place",
+                        "그래프 bbox 안에 랜덤으로 시드 배치 (기존 시드 대체)")))
+                    {
+                        VoronoiTool.RandomPlaceSeeds(activeAuth, VoronoiTool.randomSeedCount);
+                    }
+                    if (GUILayout.Button(GC("Clear Seeds", "시드 모두 삭제")))
+                    {
+                        VoronoiTool.ClearSeeds();
+                        SceneView.RepaintAll();
+                    }
+                }
+
+                EditorGUILayout.Space(2);
+                VoronoiTool.mode = (VoronoiTool.CellTypeMode)EditorGUILayout.EnumPopup(
+                    GC("Cell Type Mode",
+                       "CycleRegions=시드 인덱스 % 영역 수\n" +
+                       "RandomRegions=각 시드를 무작위 영역에\n" +
+                       "AllSame=모두 첫 번째 영역으로"),
+                    VoronoiTool.mode);
+
+                VoronoiTool.gridResolution = EditorGUILayout.Slider(
+                    GC("Grid Resolution",
+                       "격자 해상도(m). 작을수록 정확하지만 느림. 0.5~3 권장."),
+                    VoronoiTool.gridResolution, 0.3f, 5f);
+                VoronoiTool.smoothingPasses = EditorGUILayout.IntSlider(
+                    GC("Smoothing Passes",
+                       "경계 평활화 반복 수. 0=거침, 2=부드러움"),
+                    VoronoiTool.smoothingPasses, 0, 5);
+                VoronoiTool.simplifyTolerance = EditorGUILayout.Slider(
+                    GC("Simplify Tolerance",
+                       "Douglas-Peucker 단순화 허용 오차(m). 0=원본, 1=점 수 줄임"),
+                    VoronoiTool.simplifyTolerance, 0f, 3f);
+                VoronoiTool.boundsPadding = EditorGUILayout.Slider(
+                    GC("Bounds Padding",
+                       "도시 외곽에서 셀이 뻗어나갈 여유(m)"),
+                    VoronoiTool.boundsPadding, 0f, 30f);
+
+                EditorGUILayout.Space(4);
+                using (new EditorGUI.DisabledScope(activeRegion == null || VoronoiTool.seeds.Count == 0))
+                {
+                    if (GUILayout.Button(GC("✨ Generate Regions",
+                        "시드 점들로 Voronoi 영역 생성 → 기존 Region 폴리곤 대체"),
+                        GUILayout.Height(28)))
+                    {
+                        VoronoiTool.GenerateRegions(activeAuth, activeRegion);
+                        MarkDirty();
+                    }
+                }
+                if (activeRegion == null)
+                    EditorGUILayout.HelpBox("Regions 컨테이너가 필요합니다. Header에서 [Create Regions] 클릭.",
+                        MessageType.Warning);
+                else if (activeRegion.regions == null || activeRegion.regions.Count == 0)
+                    EditorGUILayout.HelpBox("Regions에 영역 정의가 없습니다. RegionAuthoring 인스펙터에서 'Add Residential' 등 추가하세요.",
+                        MessageType.Warning);
+            }
         }
 
         // 도구 활성화 버튼 (다시 누르면 해제)
@@ -489,6 +569,75 @@ namespace TownGen.V2.EditorTools
                         ScaleAllRoadWidths(g, 1.4f);
                 }
             }
+
+            // ─── 블록 통계 ───
+            DrawBlockStats();
+        }
+
+        void DrawBlockStats()
+        {
+            var blocksRoot = activeAuth.transform.Find("_Blocks");
+            if (blocksRoot == null || blocksRoot.childCount == 0) return;
+
+            EditorGUILayout.Space(2);
+            int blockCount = 0, buildingCount = 0;
+            float totalArea = 0f;
+            foreach (Transform child in blocksRoot)
+            {
+                var block = child.GetComponent<TownBlockV2>();
+                if (block == null) continue;
+                blockCount++;
+                buildingCount += child.childCount;
+                if (block.polygon != null && block.polygon.Count >= 3)
+                    totalArea += Mathf.Abs(SignedArea2D(block.polygon));
+            }
+
+            EditorGUILayout.LabelField(
+                $"Blocks: {blockCount}   Buildings: {buildingCount}   Total Area: {totalArea:F0} m²",
+                EditorStyles.miniLabel);
+
+            // Region별 분포
+            if (activeRegion != null && activeRegion.regions != null && activeRegion.regions.Count > 0)
+            {
+                var regionCounts = new System.Collections.Generic.Dictionary<string, int>();
+                int defaultCount = 0;
+                foreach (Transform child in blocksRoot)
+                {
+                    var block = child.GetComponent<TownBlockV2>();
+                    if (block == null || block.polygon == null) continue;
+                    var center = ComputeCentroidLocal(block.polygon);
+                    var r = activeRegion.ResolveRegionAt(center);
+                    if (r == null || r == activeRegion.defaultRegion) defaultCount++;
+                    else
+                    {
+                        if (!regionCounts.ContainsKey(r.name)) regionCounts[r.name] = 0;
+                        regionCounts[r.name]++;
+                    }
+                }
+                var sb = new System.Text.StringBuilder("By Region: ");
+                foreach (var kv in regionCounts)
+                    sb.Append($"{kv.Key}={kv.Value}  ");
+                if (defaultCount > 0) sb.Append($"(default)={defaultCount}");
+                EditorGUILayout.LabelField(sb.ToString(), EditorStyles.miniLabel);
+            }
+        }
+
+        static float SignedArea2D(System.Collections.Generic.List<Vector3> poly)
+        {
+            float s = 0; int n = poly.Count;
+            for (int i = 0; i < n; i++)
+            {
+                var a = poly[i]; var b = poly[(i + 1) % n];
+                s += a.x * b.z - b.x * a.z;
+            }
+            return s * 0.5f;
+        }
+
+        static Vector3 ComputeCentroidLocal(System.Collections.Generic.List<Vector3> poly)
+        {
+            Vector3 sum = Vector3.zero;
+            foreach (var p in poly) sum += p;
+            return sum / poly.Count;
         }
 
         float customWidth = 3f;

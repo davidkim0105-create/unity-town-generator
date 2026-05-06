@@ -38,6 +38,12 @@ namespace TownGen.V2.EditorTools
         [Shortcut("TownGen V2/Tool: Width Brush", KeyCode.V, MOD)]
         static void ActivateWidthBrush() => SafeToggle<WidthBrushTool>();
 
+        [Shortcut("TownGen V2/Tool: Voronoi",     KeyCode.F, MOD)]
+        static void ActivateVoronoi()    => SafeToggle<VoronoiTool>();
+
+        [Shortcut("TownGen V2/Tool: Inspect",     KeyCode.A, MOD)]
+        static void ActivateInspect()    => SafeToggle<BlockInspectorTool>();
+
         // ── 전역 해제 ──
         [Shortcut("TownGen V2/Tool: Deactivate",  KeyCode.Escape, MOD)]
         static void DeactivateAll()
