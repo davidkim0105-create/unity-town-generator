@@ -31,6 +31,22 @@ namespace TownGen.V2
         [Tooltip("빌딩 생성 확률 (0~1)\n• 1: 모든 칸에 빌딩\n• 0.85 (기본): 약간 듬성듬성\n• 0.5: 절반만 (광장/공터 많은 마을)")]
         public float density = 0.85f;
 
+        [Header("Block Pattern")]
+        [Tooltip("이 영역의 블록 채우기 패턴")]
+        public BlockPatternFiller.BlockPattern pattern = BlockPatternFiller.BlockPattern.Solid;
+
+        [Tooltip("Perimeter/U/L/Courtyard 띠 두께(m)")]
+        public float perimeterDepth = 6f;
+
+        public BlockPatternFiller.PatternSettings GetPatternSettings()
+        {
+            return new BlockPatternFiller.PatternSettings
+            {
+                pattern = pattern,
+                perimeterDepth = perimeterDepth
+            };
+        }
+
         public BuildingFiller.Settings ToFillerSettings(int seed,
             BuildingFiller.FillMode mode = BuildingFiller.FillMode.RoadFacing,
             float lotDepth = 6f,

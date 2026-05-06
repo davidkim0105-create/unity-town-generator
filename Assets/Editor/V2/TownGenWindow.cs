@@ -29,6 +29,30 @@ namespace TownGen.V2.EditorTools
         BuildingPresetV2 buildingPresetSlot;
         LSystemPresetV2 lsystemPresetSlot;
 
+        // ─── Foldout 상태 (EditorPrefs로 영속) ───
+        bool foldHeader        => GetFold("header", true);
+        bool foldTools         => GetFold("tools", true);
+        bool foldGraphInfo     => GetFold("graphInfo", false);
+        bool foldTestGraphs    => GetFold("testGraphs", false);
+        bool foldClear         => GetFold("clear", false);
+        bool foldBuildSet      => GetFold("buildSet", true);
+        bool foldRoadMesh      => GetFold("roadMesh", false);
+        bool foldBuildBtns     => GetFold("buildBtns", true);
+        bool foldDoc           => GetFold("doc", false);
+
+        const string FOLD_KEY = "TownGenV2.Fold.";
+        bool GetFold(string k, bool def) => EditorPrefs.GetBool(FOLD_KEY + k, def);
+        void SetFold(string k, bool v) => EditorPrefs.SetBool(FOLD_KEY + k, v);
+
+        bool DrawSectionFoldout(string key, string label, bool defaultOpen)
+        {
+            bool current = EditorPrefs.GetBool(FOLD_KEY + key, defaultOpen);
+            var style = new GUIStyle(EditorStyles.foldoutHeader);
+            bool next = EditorGUILayout.Foldout(current, label, true, style);
+            if (next != current) EditorPrefs.SetBool(FOLD_KEY + key, next);
+            return next;
+        }
+
         // ─── GUIContent helper ───
         static GUIContent GC(string label, string tooltip) => new GUIContent(label, tooltip);
 
@@ -115,6 +139,8 @@ namespace TownGen.V2.EditorTools
         void OnGUI()
         {
             scroll = EditorGUILayout.BeginScrollView(scroll);
+
+            // 헤더 (항상 보임)
             DrawHeader();
             EditorGUILayout.Space();
 
@@ -126,22 +152,87 @@ namespace TownGen.V2.EditorTools
                 return;
             }
 
-            DrawTools();
+            // 펼치기/접기 일괄 버튼
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Expand All", GUILayout.Width(90)))
+                {
+                    SetFold("tools", true); SetFold("graphInfo", true); SetFold("testGraphs", true);
+                    SetFold("clear", true); SetFold("buildSet", true); SetFold("roadMesh", true);
+                    SetFold("buildBtns", true); SetFold("doc", true);
+                }
+                if (GUILayout.Button("Collapse All", GUILayout.Width(90)))
+                {
+                    SetFold("tools", false); SetFold("graphInfo", false); SetFold("testGraphs", false);
+                    SetFold("clear", false); SetFold("buildSet", false); SetFold("roadMesh", false);
+                    SetFold("buildBtns", false); SetFold("doc", false);
+                }
+                if (GUILayout.Button("Default", GUILayout.Width(70)))
+                {
+                    SetFold("tools", true); SetFold("graphInfo", false); SetFold("testGraphs", false);
+                    SetFold("clear", false); SetFold("buildSet", true); SetFold("roadMesh", false);
+                    SetFold("buildBtns", true); SetFold("doc", false);
+                }
+                GUILayout.FlexibleSpace();
+            }
+            EditorGUILayout.Space(2);
+
+            // ── Tools (자주 씀, 기본 펼침) ──
+            if (DrawSectionFoldout("tools", "🛠 Tools", true))
+            {
+                DrawTools();
+            }
             EditorGUILayout.Space();
-            DrawGraphInfo();
-            DrawSelectionInfo();
+
+            // ── Graph Info (가끔 봄, 기본 접힘) ──
+            if (DrawSectionFoldout("graphInfo", "ℹ Graph Info", false))
+            {
+                DrawGraphInfo();
+                DrawSelectionInfo();
+            }
             EditorGUILayout.Space();
-            DrawTestGraphs();
+
+            // ── Test Graphs (특별할 때만) ──
+            if (DrawSectionFoldout("testGraphs", "🧪 Test Graphs / Auto Generators", false))
+            {
+                DrawTestGraphs();
+            }
             EditorGUILayout.Space();
-            DrawClearSection();
+
+            // ── Clear ──
+            if (DrawSectionFoldout("clear", "🗑 Clear", false))
+            {
+                DrawClearSection();
+            }
             EditorGUILayout.Space();
-            DrawBuildSettings();
+
+            // ── Build Settings (자주 씀, 기본 펼침) ──
+            if (DrawSectionFoldout("buildSet", "⚙ Build Settings", true))
+            {
+                DrawBuildSettings();
+            }
             EditorGUILayout.Space();
-            DrawRoadMeshSection();         // ★ 추가
+
+            // ── Road Mesh ──
+            if (DrawSectionFoldout("roadMesh", "🛣 Road Mesh", false))
+            {
+                DrawRoadMeshSection();
+            }
             EditorGUILayout.Space();
-            DrawBuildButtons();
+
+            // ── Build Buttons (자주 씀, 기본 펼침) ──
+            if (DrawSectionFoldout("buildBtns", "▶ Build", true))
+            {
+                DrawBuildButtons();
+            }
             EditorGUILayout.Space();
-            DrawDocSection();
+
+            // ── Document (가끔) ──
+            if (DrawSectionFoldout("doc", "💾 Document / Capture", false))
+            {
+                DrawDocSection();
+            }
+
             EditorGUILayout.EndScrollView();
         }
 
@@ -724,11 +815,8 @@ using (new EditorGUILayout.HorizontalScope())
             }
         }
 
-        bool buildSettingsFoldout = true;
         void DrawBuildSettings()
         {
-            buildSettingsFoldout = EditorGUILayout.Foldout(buildSettingsFoldout, "Build Settings", true);
-            if (!buildSettingsFoldout) return;
             var a = activeAuth;
 
             // ─── Town Preset ───
@@ -814,6 +902,30 @@ using (new EditorGUILayout.HorizontalScope())
             );
             EditorGUILayout.Space(2);
 
+             // ─── Block Pattern (전역 fallback) ───
+            a.patternSettings.pattern = (BlockPatternFiller.BlockPattern)EditorGUILayout.EnumPopup(
+                GC("Block Pattern",
+                   "Solid=칸칸이 박스 (기존)\n" +
+                   "Perimeter=ㅁ자 외곽 띠\n" +
+                   "UShape=ㄷ자 (한 변 비움)\n" +
+                   "LShape=ㄴ자 (두 변 비움)\n" +
+                   "Courtyard=두꺼운 띠+안마당\n" +
+                   "SingleTower=가운데 큰 박스 1개"),
+                a.patternSettings.pattern);
+            if (a.patternSettings.pattern != BlockPatternFiller.BlockPattern.Solid &&
+                a.patternSettings.pattern != BlockPatternFiller.BlockPattern.SingleTower)
+            {
+                a.patternSettings.perimeterDepth = EditorGUILayout.Slider(
+                    GC("Perimeter Depth",
+                       "띠 두께(m). 작게=얇은 띠, 크게=두꺼운 외곽\nCourtyard는 자동으로 1.4배 적용"),
+                    a.patternSettings.perimeterDepth, 2f, 20f);
+            }
+            EditorGUILayout.LabelField(
+                GC("(Region 폴리곤 안은 Region별 패턴 사용)",
+                   "Region 영역 안 블록은 Region 인스펙터의 pattern 적용"),
+                EditorStyles.miniLabel);
+            EditorGUILayout.Space(2);
+
             a.buildSettings.mode = (BuildingFiller.FillMode)EditorGUILayout.EnumPopup(
                 GC("Fill Mode", "GridOBB=격자 채움, RoadFacing=도로변 정렬"), a.buildSettings.mode);
             a.buildSettings.lotSize = EditorGUILayout.FloatField(
@@ -833,13 +945,8 @@ using (new EditorGUILayout.HorizontalScope())
             a.buildSettings.seed = EditorGUILayout.IntField(GC("Seed", "랜덤 시드"), a.buildSettings.seed);
         }
 
-        // ─── Road Mesh 섹션 ───
-        bool roadMeshFoldout = true;
         void DrawRoadMeshSection()
         {
-            roadMeshFoldout = EditorGUILayout.Foldout(roadMeshFoldout, "Road Mesh", true);
-            if (!roadMeshFoldout) return;
-
             if (activeRoadMesh == null)
             {
                 if (GUILayout.Button("Add RoadMeshAuthoring"))

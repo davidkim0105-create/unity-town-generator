@@ -105,6 +105,7 @@ namespace TownGen.V2
 
                 BuildingFiller.Settings s = fallback;
                 s.seed = fallback.seed + idx * 7919;
+                BlockPatternFiller.PatternSettings ps = a.patternSettings;
 
                 if (regions != null)
                 {
@@ -117,10 +118,11 @@ namespace TownGen.V2
                             fallback.mode,
                             fallback.lotDepth,
                             fallback.fillInteriorRows);
+                        ps = r.GetPatternSettings();
                     }
                 }
 
-                BuildingFiller.FillBlock(block, s);
+                BlockPatternFiller.Fill(block, s, ps);
                 idx++;
             }
         }

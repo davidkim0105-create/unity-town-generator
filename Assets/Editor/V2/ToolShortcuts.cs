@@ -45,7 +45,7 @@ namespace TownGen.V2.EditorTools
         static void ActivateInspect()    => SafeToggle<BlockInspectorTool>();
 
         // ── 전역 해제 ──
-        [Shortcut("TownGen V2/Tool: Deactivate",  KeyCode.Escape, MOD)]
+        [Shortcut("TownGen V2/Tool: Deactivate",  KeyCode.Backspace, MOD)]
         static void DeactivateAll()
         {
             EditorApplication.delayCall += () => Tools.current = Tool.View;

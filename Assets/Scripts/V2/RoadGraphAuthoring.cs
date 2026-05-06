@@ -56,6 +56,9 @@ namespace TownGen.V2
         [Tooltip("Region 영역 밖의 블록(=Default)에 사용할 빌딩 세팅")]
         public BuildingFiller.Settings buildSettings = BuildingFiller.DefaultSettings;
 
+        [Tooltip("기본 블록 패턴 (Region에 없으면 이 값 사용)")]
+        public BlockPatternFiller.PatternSettings patternSettings = BlockPatternFiller.PatternSettings.Default;
+
         [System.NonSerialized] private System.Collections.Generic.List<FaceResult> cachedFaces;
         [System.NonSerialized] private int cachedHash;
 
