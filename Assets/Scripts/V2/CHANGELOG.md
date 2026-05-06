@@ -1,91 +1,89 @@
 # Town Generator V2 — Changelog
 
-## v2.1.0 (2025-01) — 자동 도시 생성 + 시각화
+## v2.2.3 (2025-01) — OSM Import + Night Lighting
 
-### 🎯 새 기능
+### 🌐 OSM Import
+- **OSMParser**: XML 파싱, 위경도 → Unity 미터 (등거리 평면 투영)
+- **OSMImporter**: way[highway=*] → RoadGraph 변환
+- highway 종류별 자동 도로 폭 (motorway 10m ~ footway 1.5m)
+- 옵션: clearGraphFirst, useOSMRoadWidths, scaleFactor, excludeFootways
 
-#### 메쉬 생성
-- **도로 메쉬 (RoadMeshBuilder)**: 엣지마다 폭에 맞춘 quad 자동 생성
-- **교차로 메쉬 (IntersectionMeshBuilder)**: 노드마다 N각형 원반으로 트림된 끝 마감
-- **트림 시스템**: 도로 끝을 교차로 영역에서 잘라 깔끔한 마감
-
-#### 자동 생성 도구
-- **Subdivide**: 블록 클릭 → 가장 긴 변 기준 자동 분할 (LongestOpposite/TwoLongest)
-- **L-System Grow**: 시드 점 클릭 → Parish & Müller 기반 도시 자동 성장
-- **Road Brush**: 마우스 드래그로 일정 간격 도로 페인트
-- **Width Brush**: 도로 폭을 클릭/드래그로 변경 (스포이드 지원)
-
-#### Per-Edge Inset (자료구조 개선)
-- 각 face 변마다 그 도로의 폭/2 + margin 으로 안쪽 줄임
-- 폭이 다른 도로들이 섞여 있어도 빌딩 침범 없음
-- `useEdgeWidthForInset` (기본 ON), `insetExtraMargin` 옵션
-
-### 🛠 도구 정리
-
-#### 단축키 재편
-| 카테고리     | 단축키                       |
-| ------------ | ---------------------------- |
-| 편집 (QWERT) | Move/Draw/Cut/Delete/Connect |
-| 생성 (ZXCV)  | Brush/Subdivide/L-Grow/Width |
-| 해제         | Shift+Esc                    |
-
-#### 도구 토글
-- 같은 단축키/버튼 다시 누르면 도구 해제 (View 모드)
-- 활성 버튼 라벨에 ✓ 표시
-
-#### 표준 휠 컨트롤 (모든 인터랙티브 도구)
-- **Ctrl + 휠** → 영역/거리 (Radius, Spacing, Max Radius 등)
-- **Shift + 휠** → 크기/폭 (Width, Length 등)
-
-### 🎨 UX 개선
-- TownGenWindow에 모든 도구 통합 (인스펙터 분리 없이)
-- "Build All" 버튼: 블록 + 빌딩 + 도로 메쉬 한 번에
-- 도구별 옵션 자동 표시 (활성 도구에 따라)
-- 권장값 시각 힌트 (인셋, 폭 등)
-
-### 🧹 그래프 관리
-- **외톨이 노드 자동 제거** 버튼 (개수 표시)
-- **도로 폭 통계** 줄 (min/avg/max)
-- **도로 폭 일괄 변경** 버튼 (1.5/2/3/4/6m, Custom, ×0.7/×1.4)
-- L-System의 기존 도로 폭 보존 (Absorb 옵션)
-
-### 🔧 기술
-- 모든 도구에 `HandleUtility.AddDefaultControl` + `GetTypeForControl` 적용
-- SafeToggle 패턴: Selection 자동 복구 + try/catch
-- L-System: System.Random 기반 결정적 시드
-
-### 📦 신규 파일
-
-런타임 (`Assets/Scripts/V2/`):
-- RoadMeshBuilder.cs
-- IntersectionMeshBuilder.cs
-- RoadMeshAuthoring.cs
-- LSystemGenerator.cs
-
-에디터 (`Assets/Editor/V2/`):
-- RoadMeshAuthoringEditor.cs
-- RoadBrushTool.cs
-- SubdivideTool.cs
-- LSystemGrowTool.cs
-- WidthBrushTool.cs
-
-### 🐛 알려진 한계 (v2.2에서 해결 예정)
-- 곡선 도로 미지원 (직선 엣지만)
-- 영역(Region) 수동 폴리곤 그리기만
-- 외부 데이터 임포트 (OSM 등) 미지원
-- 빌딩 프리팹 미지원 (박스만)
-- 세팅 프리셋 저장/불러오기 미지원
+### 🌙 Night Lighting Preset (보너스)
+- Day/Night 토글 (Directional Light + Ambient + Fog 변경)
+- 빌딩 emission on/off (창문 효과)
+- Color picker로 emission 색상
 
 ---
 
-## v2.2 (계획)
+## v2.2.2 — Block Patterns + Window Foldouts
 
-진행 순서:
-1. ScriptableObject Preset (세팅 저장/재사용)
-2. 곡선 도로 (Polyline)
-3. Voronoi 자동 Region
-4. 블록 변형 패턴 (ㄷ자, ㅁ자)
-5. OpenStreetMap 임포트
+### 🏗 블록 변형 패턴 6종
+- Solid, Perimeter (ㅁ자), UShape (ㄷ자), LShape (ㄴ자), Courtyard, SingleTower
+- Region별 다른 패턴 적용 가능 (TownRegionV2.pattern)
+- Perimeter 두께 자동 제한 (블록보다 크면 fallback)
+
+### 🎨 윈도우 정리
+- 모든 섹션 Foldout화 (EditorPrefs 영속)
+- [Expand All] / [Collapse All] / [Default] 버튼
+- 섹션 아이콘 + 권장 펼침 상태
+
+---
+
+## v2.2.1 — Voronoi Region + Block Stats
+
+### ◇ Voronoi 자동 Region
+- VoronoiRegionGenerator: 격자 샘플링 + 가장 가까운 시드 + 경계 추출
+- VoronoiTool (Shift+F): 시드 점 클릭, 우클릭 제거, Ctrl+휠 그리드 해상도
+- 4가지 모드: OnePerSeed (자동 생성), CycleRegions, RandomRegions, AllSame
+- Random Place + Generate 버튼
+- 경계 평활화 + Douglas-Peucker 단순화
+
+### 🔍 Block Inspector (Shift+A)
+- 블록 호버로 면적/꼭짓점/빌딩 수/Region 표시
+- 클릭으로 그 블록 GameObject 선택
+
+### 📊 통계
+- Graph Info: 블록 수, 빌딩 수, 총 면적
+- Region별 분포 표시
+
+---
+
+## v2.2.0 — ScriptableObject Presets + Top-Down Capture
+
+### 🎁 Preset 시스템
+- LSystemPresetV2 / BuildingPresetV2 / TownPresetV2 (ScriptableObject)
+- PresetGUIHelper: 공통 "Slot + Apply + Save As" 한 줄 UI
+- TownGenWindow 통합 (Build Settings, Buildings, L-System)
+- BuiltInPresetCreator 메뉴: 17개 빌트인 프리셋 일괄 생성
+  - LSystem: SmallVillage, GridCity, Natural, Radial, BigCity, LinearTown
+  - Building: LowResi, MidResi, HighCommercial, Industrial, Sparse, Megacity
+  - Town: Default, NoSidewalk, WideSidewalk, ParkRoad, LegacyV20
+
+### 📷 Top-Down Capture (보너스)
+- 도시를 위에서 본 PNG 출력 (정사영 카메라)
+- 사이즈: 1K/2K/4K/8K, 투명 배경 옵션
+- 자동 bbox + 카메라 배치
+- TownGenWindow → Document 섹션
+
+---
+
+## v2.1.0 (2025-01) — 자동 도시 생성 + 시각화
+
+### 🎯 핵심
+- 도로 메쉬 + 교차로 메쉬 (RoadMeshBuilder, IntersectionMeshBuilder)
+- Subdivide 자동 분할 (Shift+X)
+- L-System 자동 도시 성장 (Shift+C)
+- Road Brush 드래그 페인트 (Shift+Z)
+- Width Brush 도로 폭 변경 (Shift+V)
+- Per-Edge Inset (변별 자동 인셋)
+
+### 🛠 UX
+- 단축키 재편: QWERT(편집) + ZXCV(생성)
+- 도구 토글 (다시 누르면 해제)
+- 표준 휠 컨트롤 (Ctrl=영역, Shift=크기)
+- 외톨이 노드 자동 제거
+- 도로 폭 일괄 변경 + 통계
+- L-System 폭 보존 옵션
 
 ---
 
