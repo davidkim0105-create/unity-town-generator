@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5fc6d9d8d361ca49bee585cc099e226, type: 3}
+  m_Name: Bldg_Industrial
+  m_EditorClassIdentifier: 
+  description: "\uC0B0\uC5C5\uB2E8\uC9C0 (\uD070 \uCC3D\uACE0)"
+  settings:
+    mode: 1
+    lotSize: 8
+    lotDepth: 10
+    lotMargin: 0.1
+    minHeight: 4
+    maxHeight: 8
+    density: 0.6
+    seed: 400
+    material: {fileID: 0}
+    fillInteriorRows: 0

@@ -15,6 +15,7 @@ namespace TownGen.V2
             RoadFacing,     // 도로변 따라 정렬 (신규)
         }
 
+        [System.Serializable]
         public struct Settings
         {
             [Tooltip("배치 알고리즘\n• GridOBB: 블록 전체에 격자로 배치 (큰 블록 빽빽이 채움)\n• RoadFacing: 도로변에 줄지어 정렬 (도시형, 안마당 빔)")]

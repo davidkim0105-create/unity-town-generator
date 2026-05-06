@@ -2,6 +2,7 @@ using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
 using TownGen.V2;
+using TownGen.V2.Presets;
 
 namespace TownGen.V2.EditorTools
 {
@@ -18,10 +19,15 @@ namespace TownGen.V2.EditorTools
         // ─── 활성 컨텍스트 ───
         RoadGraphAuthoring activeAuth;
         RegionAuthoring activeRegion;
-        RoadMeshAuthoring activeRoadMesh;          // ★ 추가
+        RoadMeshAuthoring activeRoadMesh;
         bool autoFollowSelection = true;
 
         Vector2 scroll;
+
+        // ─── Preset 슬롯 ───
+        TownPresetV2 townPresetSlot;
+        BuildingPresetV2 buildingPresetSlot;
+        LSystemPresetV2 lsystemPresetSlot;
 
         // ─── GUIContent helper ───
         static GUIContent GC(string label, string tooltip) => new GUIContent(label, tooltip);
@@ -297,6 +303,21 @@ namespace TownGen.V2.EditorTools
             {
                 EditorGUILayout.Space(4);
                 GUILayout.Label("L-System Options", EditorStyles.miniBoldLabel);
+
+                // ─── L-System Preset ───
+                lsystemPresetSlot = PresetGUIHelper.DrawPresetRow<LSystemPresetV2>(
+                    "LS Preset", lsystemPresetSlot,
+                    preset => {
+                        LSystemGrowTool.settings = preset.GetSettings();
+                    },
+                    () => {
+                        var p = ScriptableObject.CreateInstance<LSystemPresetV2>();
+                        p.CopyFrom(LSystemGrowTool.settings);
+                        return p;
+                    }
+                );
+                EditorGUILayout.Space(2);
+
                 ref var ls = ref LSystemGrowTool.settings;
                 ls.iterations = EditorGUILayout.IntSlider(
                     GC("Iterations", "성장 단계 수. 높을수록 도시 큼"), ls.iterations, 1, 12);
@@ -561,6 +582,22 @@ namespace TownGen.V2.EditorTools
             if (!buildSettingsFoldout) return;
             var a = activeAuth;
 
+            // ─── Town Preset ───
+            townPresetSlot = PresetGUIHelper.DrawPresetRow<TownPresetV2>(
+                "Town Preset", townPresetSlot,
+                preset => {
+                    Undo.RecordObject(a, "Apply Town Preset");
+                    preset.ApplyTo(a);
+                    EditorUtility.SetDirty(a);
+                },
+                () => {
+                    var p = ScriptableObject.CreateInstance<TownPresetV2>();
+                    p.CopyFrom(a);
+                    return p;
+                }
+            );
+            EditorGUILayout.Space(2);
+
             // ★ Per-edge inset 토글
             a.useEdgeWidthForInset = EditorGUILayout.Toggle(
                 GC("Use Edge Width Inset",
@@ -611,6 +648,23 @@ namespace TownGen.V2.EditorTools
                 "블록 메쉬 두께(m). 0=평면, 0.1=보도블록, 1+=단차"), a.blockThickness, 0f, 5f);
 
             EditorGUILayout.LabelField("Buildings (fallback)", EditorStyles.miniBoldLabel);
+
+            // ─── Building Preset ───
+            buildingPresetSlot = PresetGUIHelper.DrawPresetRow<BuildingPresetV2>(
+                "Bldg Preset", buildingPresetSlot,
+                preset => {
+                    Undo.RecordObject(a, "Apply Building Preset");
+                    a.buildSettings = preset.GetSettings();
+                    EditorUtility.SetDirty(a);
+                },
+                () => {
+                    var p = ScriptableObject.CreateInstance<BuildingPresetV2>();
+                    p.CopyFrom(a.buildSettings);
+                    return p;
+                }
+            );
+            EditorGUILayout.Space(2);
+
             a.buildSettings.mode = (BuildingFiller.FillMode)EditorGUILayout.EnumPopup(
                 GC("Fill Mode", "GridOBB=격자 채움, RoadFacing=도로변 정렬"), a.buildSettings.mode);
             a.buildSettings.lotSize = EditorGUILayout.FloatField(
@@ -750,6 +804,37 @@ namespace TownGen.V2.EditorTools
                     EditorApplication.delayCall += () => { Selection.activeGameObject = activeAuth.gameObject; TownDocMenu.QuickSave(); };
                 if (GUILayout.Button(GC("Quick Load", "즉시 로드 + 자동 Build")))
                     EditorApplication.delayCall += () => { Selection.activeGameObject = activeAuth.gameObject; TownDocMenu.QuickLoad(); };
+            }
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Top-Down Capture", EditorStyles.miniBoldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(GC("Size",
+                    "출력 PNG 한 변의 픽셀 수"), GUILayout.Width(40));
+                TopDownCapture.captureSize = EditorGUILayout.IntPopup(
+                    TopDownCapture.captureSize,
+                    new[] { "1024", "2048", "4096", "8192" },
+                    new[] { 1024, 2048, 4096, 8192 },
+                    GUILayout.Width(80));
+                TopDownCapture.transparentBackground = EditorGUILayout.ToggleLeft(
+                    GC("Transparent BG", "배경을 투명 PNG로 (스카이박스 안 찍힘)"),
+                    TopDownCapture.transparentBackground, GUILayout.Width(130));
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(GC("📷 Capture Top-Down PNG",
+                    "도시를 위에서 본 PNG로 저장 (Scene 카메라 영향 없음)"),
+                    GUILayout.Height(24)))
+                {
+                    string path = EditorUtility.SaveFilePanel(
+                        "Save Top-Down PNG",
+                        Application.dataPath,
+                        $"town_{System.DateTime.Now:yyyyMMdd_HHmmss}",
+                        "png");
+                    if (!string.IsNullOrEmpty(path))
+                        TopDownCapture.Capture(activeAuth, path);
+                }
             }
         }
 
