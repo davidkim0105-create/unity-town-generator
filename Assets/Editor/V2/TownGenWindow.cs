@@ -29,6 +29,9 @@ namespace TownGen.V2.EditorTools
         BuildingPresetV2 buildingPresetSlot;
         LSystemPresetV2 lsystemPresetSlot;
 
+        // ─── OSM Sample 선택 ───
+        int selectedSampleIdx = 0;
+
         // ─── OSM Import 옵션 ───
         TownGen.V2.OSM.OSMImporter.ImportOptions osmOptions = new TownGen.V2.OSM.OSMImporter.ImportOptions();
 
@@ -1218,9 +1221,43 @@ using (new EditorGUILayout.HorizontalScope())
 
             // ─── ★ OSM-First (메인 흐름) ───
             UIStyles.SubHeader("🌐 OSM City (Main)");
-            if (GUILayout.Button(GC("🌐 Quick OSM City",
-                "OSM 파일 선택 → 임포트 + 정리 + Voronoi + Build All\n" +
-                "(외톨이 제거 + 도로 폭 자동 + 영역 분할 + 빌딩 채우기)"),
+
+            // ★ Sample Cities (한 클릭, 다운로드 X)
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(GC("Sample",
+                    "미리 받아둔 OSM 샘플. 다운로드 없이 즉시 시도"),
+                    GUILayout.Width(60));
+
+                var sampleNames = new string[SampleOSMLoader.Samples.Count];
+                for (int i = 0; i < sampleNames.Length; i++)
+                    sampleNames[i] = SampleOSMLoader.Samples[i].displayName;
+
+                selectedSampleIdx = EditorGUILayout.Popup(selectedSampleIdx, sampleNames);
+
+                if (GUILayout.Button(GC("Load",
+                    "선택한 샘플로 도시 자동 생성"),
+                    GUILayout.Width(50), GUILayout.Height(20)))
+                {
+                    var sample = SampleOSMLoader.Samples[selectedSampleIdx];
+                    QuickActions.QuickOSMCityFromSample(activeAuth, ref activeRegion, sample);
+                    MarkDirty();
+                }
+            }
+
+            // 선택된 샘플 설명
+            if (selectedSampleIdx >= 0 && selectedSampleIdx < SampleOSMLoader.Samples.Count)
+            {
+                EditorGUILayout.LabelField(
+                    SampleOSMLoader.Samples[selectedSampleIdx].description,
+                    EditorStyles.miniLabel);
+            }
+
+            EditorGUILayout.Space(2);
+
+            // 기존: 사용자 .osm 파일 임포트
+            if (GUILayout.Button(GC("📂 Quick OSM City (from file)",
+                "OSM 파일 선택 → 임포트 + 정리 + Voronoi + Build All"),
                 UIStyles.BigButton))
             {
                 QuickActions.QuickOSMCity(activeAuth, ref activeRegion);
@@ -1249,7 +1286,7 @@ using (new EditorGUILayout.HorizontalScope())
                     MarkDirty();
                 }
             }
-
+            
             // ─── 격자 (간단한 테스트) ───
             UIStyles.SubHeader("📐 Grid (Test)");
             if (GUILayout.Button(GC("📐 Quick Grid City",

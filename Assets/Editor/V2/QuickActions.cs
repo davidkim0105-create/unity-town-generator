@@ -369,6 +369,128 @@ namespace TownGen.V2.EditorTools
             Debug.Log("[QuickActions] Day mode applied.");
         }
 
+        // ─────────────────────────────────────────
+        // 7. Quick OSM City (Sample 로드 버전)
+        // ─────────────────────────────────────────
+        public static void QuickOSMCityFromSample(RoadGraphAuthoring auth,
+            ref RegionAuthoring region,
+            SampleOSMLoader.Sample sample)
+        {
+            if (auth == null) { Debug.LogWarning("[QuickActions] No RoadGraph"); return; }
+            if (sample == null) { Debug.LogWarning("[QuickActions] No sample"); return; }
+
+            // Sample을 임시 파일로 저장
+            string path = SampleOSMLoader.SaveToTempFile(sample);
+            if (string.IsNullOrEmpty(path))
+            {
+                Debug.LogWarning($"[QuickActions] Failed to load sample: {sample.displayName}");
+                return;
+            }
+
+            // 그 다음은 기존 QuickOSMCity와 동일 (파일 다이얼로그만 빠짐)
+            Undo.RegisterFullObjectHierarchyUndo(auth.gameObject, "Quick OSM Sample");
+
+            auth.graph.Clear();
+
+            var opts = new TownGen.V2.OSM.OSMImporter.ImportOptions
+            {
+                clearGraphFirst = false,
+                useOSMRoadWidths = true,
+                defaultWidth = 3f,
+                scaleFactor = 1f,
+                excludeFootways = false
+            };
+            var importResult = TownGen.V2.OSM.OSMImporter.Import(path, auth, opts);
+            Debug.Log($"[QuickOSMSample] Loaded '{sample.displayName}': {importResult.summary}");
+
+            if (importResult.edgesAdded == 0)
+            {
+                Debug.LogWarning("[QuickOSMSample] OSM 데이터에 도로가 없습니다.");
+                return;
+            }
+
+            // 외톨이 노드 제거
+            int orphans = 0;
+            for (int i = auth.graph.nodes.Count - 1; i >= 0; i--)
+            {
+                var n = auth.graph.nodes[i];
+                if (n.edgeIds == null || n.edgeIds.Count == 0)
+                {
+                    auth.graph.nodes.RemoveAt(i);
+                    orphans++;
+                }
+            }
+            if (orphans > 0) auth.graph.InvalidateCache();
+
+            // 도로 폭 축소
+            foreach (var e in auth.graph.edges)
+                e.width = Mathf.Max(0.8f, e.width * 0.5f);
+
+            // Build Settings
+            auth.useEdgeWidthForInset = true;
+            auth.insetExtraMargin = 0.5f;
+            auth.roadInset = 1.5f;
+            auth.blockThickness = 0.1f;
+            auth.patternSettings.pattern = BlockPatternFiller.BlockPattern.Solid;
+
+            // Bldg
+            var bldgPreset = LoadResource<BuildingPresetV2>("Presets/Building/Bldg_MidResi");
+            if (bldgPreset != null)
+            {
+                auth.buildSettings = bldgPreset.GetSettings();
+                auth.buildSettings.seed = s_QuickRunCount * 7919;
+                auth.buildSettings.mode = BuildingFiller.FillMode.GridOBB;
+                auth.buildSettings.lotSize = 4f;
+                auth.buildSettings.lotMargin = 0.15f;
+                auth.buildSettings.density = 0.9f;
+                auth.buildSettings.fillInteriorRows = true;
+            }
+            s_QuickRunCount++;
+
+            // Region 자동
+            if (region != null)
+            {
+                VoronoiTool.RandomPlaceSeeds(auth, 4);
+                VoronoiTool.mode = VoronoiTool.CellTypeMode.OnePerSeed;
+                VoronoiTool.GenerateRegions(auth, region);
+            }
+
+            auth.InvalidateFaceCache();
+
+            // 1차 Build
+            BlockBuilder.RebuildAllBlocks(auth, auth.roadInset,
+                regions: region, blockThickness: auth.blockThickness,
+                useEdgeWidthForInset: auth.useEdgeWidthForInset,
+                insetExtraMargin: auth.insetExtraMargin);
+
+            // 큰 블록 분할
+            int subdivided = SubdivideLargeBlocks(auth, region, minArea: 600f, maxIterations: 4);
+            if (subdivided > 0)
+            {
+                auth.InvalidateFaceCache();
+                BlockBuilder.RebuildAllBlocks(auth, auth.roadInset,
+                    regions: region, blockThickness: auth.blockThickness,
+                    useEdgeWidthForInset: auth.useEdgeWidthForInset,
+                    insetExtraMargin: auth.insetExtraMargin);
+            }
+
+            // Region 자동 매핑
+            if (region != null)
+                RegionAutoAssigner.AutoAssign(region);
+
+            // 적응형 빌딩
+            AdaptiveBuildingFiller.ApplyAdaptive(auth, auth.buildSettings, region);
+
+            // 도로 메쉬
+            var rmFinal = auth.GetComponent<RoadMeshAuthoring>();
+            if (rmFinal != null) rmFinal.Build();
+
+            ReportStats(auth, $"Quick OSM Sample ({sample.displayName})");
+            EditorUtility.SetDirty(auth);
+            if (region != null) EditorUtility.SetDirty(region);
+            SceneView.RepaintAll();
+        }
+
         // ═════════════════════════════════════════
         // 헬퍼들
         // ═════════════════════════════════════════
