@@ -49,12 +49,22 @@ namespace TownGen.V2.EditorTools
 
         bool DrawSectionFoldout(string key, string label, bool defaultOpen)
         {
-            bool current = EditorPrefs.GetBool(FOLD_KEY + key, defaultOpen);
-            var style = new GUIStyle(EditorStyles.foldoutHeader);
-            bool next = EditorGUILayout.Foldout(current, label, true, style);
-            if (next != current) EditorPrefs.SetBool(FOLD_KEY + key, next);
-            return next;
+            // 색은 OnGUI에서 카테고리별로 지정. 여기는 폴백 회색
+            return UIStyles.ColoredFoldout(key, label, UIStyles.SectionDebugColor, defaultOpen);
         }
+
+        // 카테고리별 wrapper
+        bool DrawEditFoldout(string key, string label, bool defaultOpen) =>
+            UIStyles.ColoredFoldout(key, label, UIStyles.SectionEditColor, defaultOpen);
+
+        bool DrawBuildFoldout(string key, string label, bool defaultOpen) =>
+            UIStyles.ColoredFoldout(key, label, UIStyles.SectionBuildColor, defaultOpen);
+
+        bool DrawDataFoldout(string key, string label, bool defaultOpen) =>
+            UIStyles.ColoredFoldout(key, label, UIStyles.SectionDataColor, defaultOpen);
+
+        bool DrawDebugFoldout(string key, string label, bool defaultOpen) =>
+            UIStyles.ColoredFoldout(key, label, UIStyles.SectionDebugColor, defaultOpen);
 
         // ─── GUIContent helper ───
         static GUIContent GC(string label, string tooltip) => new GUIContent(label, tooltip);
@@ -163,94 +173,140 @@ namespace TownGen.V2.EditorTools
                     SetFold("tools", true); SetFold("graphInfo", true); SetFold("testGraphs", true);
                     SetFold("clear", true); SetFold("buildSet", true); SetFold("roadMesh", true);
                     SetFold("buildBtns", true); SetFold("doc", true);
+                    SetFold("osm", true); SetFold("light", true);
                 }
                 if (GUILayout.Button("Collapse All", GUILayout.Width(90)))
                 {
                     SetFold("tools", false); SetFold("graphInfo", false); SetFold("testGraphs", false);
                     SetFold("clear", false); SetFold("buildSet", false); SetFold("roadMesh", false);
                     SetFold("buildBtns", false); SetFold("doc", false);
+                    SetFold("osm", false); SetFold("light", false);
                 }
                 if (GUILayout.Button("Default", GUILayout.Width(70)))
                 {
-                    SetFold("tools", true); SetFold("graphInfo", false); SetFold("testGraphs", false);
-                    SetFold("clear", false); SetFold("buildSet", true); SetFold("roadMesh", false);
-                    SetFold("buildBtns", true); SetFold("doc", false);
+                    // EDIT
+                    SetFold("tools", true);
+                    // BUILD
+                    SetFold("buildSet", true); SetFold("buildBtns", true);
+                    SetFold("roadMesh", false); SetFold("light", false);
+                    // DATA
+                    SetFold("doc", false); SetFold("osm", false); SetFold("testGraphs", false);
+                    // DEBUG
+                    SetFold("graphInfo", false); SetFold("clear", false);
                 }
                 GUILayout.FlexibleSpace();
             }
             EditorGUILayout.Space(2);
 
-            // ── Tools (자주 씀, 기본 펼침) ──
-            if (DrawSectionFoldout("tools", "🛠 Tools", true))
+            // ═══════════════════════════════════
+            // 🔵 EDIT — 그래프 편집 도구
+            // ═══════════════════════════════════
+            DrawCategoryHeader("EDIT", UIStyles.SectionEditColor);
+
+            if (DrawEditFoldout("tools", "🛠 Tools", true))
             {
                 DrawTools();
             }
-            EditorGUILayout.Space();
+            EditorGUILayout.Space(2);
 
-            // ── Graph Info (가끔 봄, 기본 접힘) ──
-            if (DrawSectionFoldout("graphInfo", "ℹ Graph Info", false))
+            // ═══════════════════════════════════
+            // 🟢 BUILD — 도시 생성 + 시각화
+            // ═══════════════════════════════════
+            DrawCategoryHeader("BUILD", UIStyles.SectionBuildColor);
+
+            if (DrawBuildFoldout("quick", "⚡ Quick Actions", true))
+            {
+                DrawQuickActionsSection();
+            }
+            EditorGUILayout.Space(2);
+
+            if (DrawBuildFoldout("buildSet", "⚙ Build Settings", false))
+            {
+                DrawBuildSettings();
+            }
+            EditorGUILayout.Space(2);
+
+            if (DrawBuildFoldout("buildBtns", "▶ Build", true))
+            {
+                DrawBuildButtons();
+            }
+            EditorGUILayout.Space(2);
+
+            if (DrawBuildFoldout("roadMesh", "🛣 Road Mesh", false))
+            {
+                DrawRoadMeshSection();
+            }
+            EditorGUILayout.Space(2);
+
+            if (DrawBuildFoldout("light", "🌙 Lighting Preset", false))
+            {
+                DrawLightingSection();
+            }
+            EditorGUILayout.Space(2);
+
+            // ═══════════════════════════════════
+            // 🟠 DATA — 데이터 입출력
+            // ═══════════════════════════════════
+            DrawCategoryHeader("DATA", UIStyles.SectionDataColor);
+
+            if (DrawDataFoldout("doc", "💾 Save / Load / Capture", false))
+            {
+                DrawDocSection();
+            }
+            EditorGUILayout.Space(2);
+
+            if (DrawDataFoldout("osm", "🌐 OSM Import", false))
+            {
+                DrawOSMSection();
+            }
+            EditorGUILayout.Space(2);
+
+            if (DrawDataFoldout("testGraphs", "🧪 Test Graphs / Auto Generators", false))
+            {
+                DrawTestGraphs();
+            }
+            EditorGUILayout.Space(2);
+
+            // ═══════════════════════════════════
+            // ⚪ DEBUG — 정보 + 정리
+            // ═══════════════════════════════════
+            DrawCategoryHeader("DEBUG", UIStyles.SectionDebugColor);
+
+            if (DrawDebugFoldout("graphInfo", "ℹ Graph Info / Stats", false))
             {
                 DrawGraphInfo();
                 DrawSelectionInfo();
             }
-            EditorGUILayout.Space();
+            EditorGUILayout.Space(2);
 
-            // ── Test Graphs (특별할 때만) ──
-            if (DrawSectionFoldout("testGraphs", "🧪 Test Graphs / Auto Generators", false))
-            {
-                DrawTestGraphs();
-            }
-            EditorGUILayout.Space();
-
-            // ── Clear ──
-            if (DrawSectionFoldout("clear", "🗑 Clear", false))
+            if (DrawDebugFoldout("clear", "🗑 Clear", false))
             {
                 DrawClearSection();
             }
-            EditorGUILayout.Space();
-
-            // ── Build Settings (자주 씀, 기본 펼침) ──
-            if (DrawSectionFoldout("buildSet", "⚙ Build Settings", true))
-            {
-                DrawBuildSettings();
-            }
-            EditorGUILayout.Space();
-
-            // ── Road Mesh ──
-            if (DrawSectionFoldout("roadMesh", "🛣 Road Mesh", false))
-            {
-                DrawRoadMeshSection();
-            }
-            EditorGUILayout.Space();
-
-            // ── Build Buttons (자주 씀, 기본 펼침) ──
-            if (DrawSectionFoldout("buildBtns", "▶ Build", true))
-            {
-                DrawBuildButtons();
-            }
-            EditorGUILayout.Space();
-
-            // ── Document (가끔) ──
-            if (DrawSectionFoldout("doc", "💾 Document / Capture", false))
-            {
-                DrawDocSection();
-            }
-            EditorGUILayout.Space();
-
-            // ── OSM Import (가끔) ──
-            if (DrawSectionFoldout("osm", "🌐 OSM Import", false))
-            {
-                DrawOSMSection();
-            }
-            EditorGUILayout.Space();
-
-            // ── Lighting (가끔) ──
-            if (DrawSectionFoldout("light", "🌙 Lighting Preset", false))
-            {
-                DrawLightingSection();
-            }
 
             EditorGUILayout.EndScrollView();
+        }
+
+        // 카테고리 헤더 (큰 색 띠, 윈도우 전체 폭)
+        void DrawCategoryHeader(string label, Color color)
+        {
+            EditorGUILayout.Space(6);
+            var rect = EditorGUILayout.GetControlRect(false, 18);
+
+            // 배경 (전체 폭)
+            Color bg = color; bg.a = 0.5f;
+            var bgRect = new Rect(0, rect.y, EditorGUIUtility.currentViewWidth, rect.height);
+            EditorGUI.DrawRect(bgRect, bg);
+
+            // 라벨
+            var style = new GUIStyle(EditorStyles.boldLabel);
+            style.fontSize = 10;
+            style.alignment = TextAnchor.MiddleLeft;
+            style.padding = new RectOffset(8, 0, 0, 0);
+            style.normal.textColor = new Color(0.95f, 0.95f, 0.95f);
+            EditorGUI.LabelField(rect, label, style);
+
+            EditorGUILayout.Space(2);
         }
 
         // ─────────── 섹션들 ───────────
@@ -385,31 +441,33 @@ using (new EditorGUILayout.HorizontalScope())
             if (UnityEditor.EditorTools.ToolManager.activeToolType == typeof(SubdivideTool))
             {
                 EditorGUILayout.Space(4);
-                GUILayout.Label("Subdivide Options", EditorStyles.miniBoldLabel);
-                SubdivideTool.mode = (SubdivideTool.SplitMode)EditorGUILayout.EnumPopup(
-                    GC("Mode",
-                       "LongestOpposite=가장 긴 변 + 마주보는 평행한 변 (사각형에 자연스러움)\n" +
-                       "TwoLongest=가장 긴 두 변 (모양 다양)"),
-                    SubdivideTool.mode);
-                SubdivideTool.minEdgeLength = EditorGUILayout.Slider(
-                    GC("Min Edge Length", "이보다 짧은 변은 분할 후보에서 제외 (작은 블록 보호)"),
-                    SubdivideTool.minEdgeLength, 1f, 30f);
+                UIStyles.SubHeader("✂ Subdivide");
+
                 SubdivideTool.newRoadWidth = EditorGUILayout.Slider(
-                    GC("New Road Width",
-                       "분할 시 추가되는 도로의 폭(m). Road Inset의 2배 이상을 권장 — 미만이면 양쪽 블록이 거의 붙어 빌딩이 겹쳐 보임."),
+                    GC("New Road Width", "분할 시 추가되는 도로 폭(m)"),
                     SubdivideTool.newRoadWidth, 1f, 10f);
-                SubdivideTool.autoRebuild = EditorGUILayout.Toggle(
-                    GC("Auto Rebuild",
-                       "분할 후 즉시 블록/빌딩/도로메쉬 재생성 (ON 권장)"),
-                    SubdivideTool.autoRebuild);
 
                 if (activeAuth != null && SubdivideTool.newRoadWidth < activeAuth.roadInset * 2f * 0.95f)
                 {
                     EditorGUILayout.HelpBox(
-                        $"New Road Width({SubdivideTool.newRoadWidth:F1})이 Road Inset({activeAuth.roadInset:F1})의 2배보다 작습니다.\n" +
-                        $"분할된 두 블록 사이 도로가 안 보이고 빌딩이 겹쳐 보일 수 있습니다.\n" +
-                        $"권장: {activeAuth.roadInset * 2f + 0.5f:F1}m 이상",
+                        $"권장: {activeAuth.roadInset * 2f + 0.5f:F1}m 이상 (Road Inset × 2)",
                         MessageType.Warning);
+                }
+
+                if (UIStyles.AdvancedFoldout("subdivide"))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        SubdivideTool.mode = (SubdivideTool.SplitMode)EditorGUILayout.EnumPopup(
+                            GC("Mode", "LongestOpposite=마주보는 변, TwoLongest=두 긴 변"),
+                            SubdivideTool.mode);
+                        SubdivideTool.minEdgeLength = EditorGUILayout.Slider(
+                            GC("Min Edge", "이 길이 미만 변은 분할 안 함"),
+                            SubdivideTool.minEdgeLength, 1f, 30f);
+                        SubdivideTool.autoRebuild = EditorGUILayout.Toggle(
+                            GC("Auto Rebuild", "분할 후 즉시 빌드"),
+                            SubdivideTool.autoRebuild);
+                    }
                 }
             }
 
@@ -417,56 +475,67 @@ using (new EditorGUILayout.HorizontalScope())
             if (UnityEditor.EditorTools.ToolManager.activeToolType == typeof(LSystemGrowTool))
             {
                 EditorGUILayout.Space(4);
-                GUILayout.Label("L-System Options", EditorStyles.miniBoldLabel);
+                UIStyles.SubHeader("🌱 L-System Options");
 
-                // ─── L-System Preset ───
+                // 🅰 Preset (가장 강조)
                 lsystemPresetSlot = PresetGUIHelper.DrawPresetRow<LSystemPresetV2>(
                     "LS Preset", lsystemPresetSlot,
-                    preset => {
-                        LSystemGrowTool.settings = preset.GetSettings();
-                    },
+                    preset => { LSystemGrowTool.settings = preset.GetSettings(); },
                     () => {
                         var p = ScriptableObject.CreateInstance<LSystemPresetV2>();
                         p.CopyFrom(LSystemGrowTool.settings);
                         return p;
                     }
                 );
-                EditorGUILayout.Space(2);
 
                 ref var ls = ref LSystemGrowTool.settings;
+
+                // 🅱 핵심 4개만 노출
+                EditorGUILayout.Space(2);
                 ls.iterations = EditorGUILayout.IntSlider(
-                    GC("Iterations", "성장 단계 수. 높을수록 도시 큼"), ls.iterations, 1, 12);
-                ls.segmentLength = EditorGUILayout.Slider(
-                    GC("Segment Length", "한 단계 도로 길이(m)"), ls.segmentLength, 3f, 30f);
-                ls.segmentLengthJitter = EditorGUILayout.Slider(
-                    GC("Length Jitter", "길이 무작위 ±%"), ls.segmentLengthJitter, 0f, 0.8f);
-                ls.angleJitter = EditorGUILayout.Slider(
-                    GC("Angle Jitter", "방향 무작위 ±°. 0=완전 격자, 30=구불구불"),
-                    ls.angleJitter, 0f, 60f);
+                    GC("Size", "성장 단계 수. 1=작음, 12=거대"),
+                    ls.iterations, 1, 12);
                 ls.branchProbability = EditorGUILayout.Slider(
-                    GC("Branch Probability", "분기 확률. 높을수록 가지 많음"),
+                    GC("Branching", "분기 확률. 0.15~0.25 권장"),
                     ls.branchProbability, 0f, 1f);
-                ls.initialBranches = EditorGUILayout.IntSlider(
-                    GC("Initial Branches", "시드에서 출발 방향 수 (1=일자, 2=양쪽, 4=십자, 6=별)"),
-                    ls.initialBranches, 1, 8);
-                ls.roadWidth = EditorGUILayout.Slider(
-                    GC("Road Width", "생성 도로 폭(m)"), ls.roadWidth, 1f, 10f);
+                ls.angleJitter = EditorGUILayout.Slider(
+                    GC("Curviness", "방향 무작위. 0=격자, 30°=자연스러움"),
+                    ls.angleJitter, 0f, 60f);
                 ls.maxRadius = EditorGUILayout.Slider(
-                    GC("Max Radius", "시드에서 이 거리 안쪽에서만 자람(m)"),
+                    GC("Max Radius", "성장 반경(m)"),
                     ls.maxRadius, 20f, 300f);
-                ls.snapDistance = EditorGUILayout.Slider(
-                    GC("Snap Distance", "기존 노드/엣지 흡수 거리(m)"),
-                    ls.snapDistance, 0.5f, 10f);
-                ls.seed = EditorGUILayout.IntField(
-                    GC("Seed", "랜덤 시드 (매 클릭마다 자동 +1)"), ls.seed);
-                LSystemGrowTool.autoRebuild = EditorGUILayout.Toggle(
-                    GC("Auto Rebuild", "성장 후 즉시 블록/빌딩/도로메쉬 재생성"),
-                    LSystemGrowTool.autoRebuild);
-                LSystemGenerator.absorbExistingEdges = EditorGUILayout.Toggle(
-                    GC("Absorb Existing Edges",
-                       "OFF(권장): 기존 도로를 분할/흡수하지 않음. 메인 도로(Brush)+골목(L-System) 같이 폭이 다른 도로를 보존.\n" +
-                       "ON: 기존 엣지를 분할해서 자연스럽게 합침."),
-                    LSystemGenerator.absorbExistingEdges);
+
+                // ▶ Advanced
+                if (UIStyles.AdvancedFoldout("lsystem"))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        ls.segmentLength = EditorGUILayout.Slider(
+                            GC("Segment Length", "한 단계 도로 길이(m)"),
+                            ls.segmentLength, 3f, 30f);
+                        ls.segmentLengthJitter = EditorGUILayout.Slider(
+                            GC("Length Jitter", "길이 무작위 ±%"),
+                            ls.segmentLengthJitter, 0f, 0.8f);
+                        ls.initialBranches = EditorGUILayout.IntSlider(
+                            GC("Initial Branches", "시작 방향 수 (4=십자, 6=별)"),
+                            ls.initialBranches, 1, 8);
+                        ls.roadWidth = EditorGUILayout.Slider(
+                            GC("Road Width", "생성 도로 폭(m)"),
+                            ls.roadWidth, 1f, 10f);
+                        ls.snapDistance = EditorGUILayout.Slider(
+                            GC("Snap Distance", "기존 노드/엣지 흡수 거리(m)"),
+                            ls.snapDistance, 0.5f, 10f);
+                        ls.seed = EditorGUILayout.IntField(
+                            GC("Seed", "랜덤 시드 (매 클릭마다 자동 +1)"),
+                            ls.seed);
+                        LSystemGrowTool.autoRebuild = EditorGUILayout.Toggle(
+                            GC("Auto Rebuild", "성장 후 즉시 빌드"),
+                            LSystemGrowTool.autoRebuild);
+                        LSystemGenerator.absorbExistingEdges = EditorGUILayout.Toggle(
+                            GC("Absorb Existing", "ON: 기존 도로 분할 흡수, OFF: 폭 보존(권장)"),
+                            LSystemGenerator.absorbExistingEdges);
+                    }
+                }
             }
 
             // ─── Width Brush 옵션 ───
@@ -499,73 +568,75 @@ using (new EditorGUILayout.HorizontalScope())
             if (UnityEditor.EditorTools.ToolManager.activeToolType == typeof(VoronoiTool))
             {
                 EditorGUILayout.Space(4);
-                GUILayout.Label("Voronoi Options", EditorStyles.miniBoldLabel);
+                UIStyles.SubHeader($"◇ Voronoi (Seeds: {VoronoiTool.seeds.Count})");
 
-                EditorGUILayout.LabelField($"Seeds: {VoronoiTool.seeds.Count}",
-                    EditorStyles.miniLabel);
+                // 🅰 Mode
+                VoronoiTool.mode = (VoronoiTool.CellTypeMode)EditorGUILayout.EnumPopup(
+                    GC("Mode",
+                       "OnePerSeed=시드마다 새 영역 자동 생성 (추천)\n" +
+                       "CycleRegions=기존 영역에 순환 매핑\n" +
+                       "RandomRegions=무작위 매핑\n" +
+                       "AllSame=모두 첫 영역"),
+                    VoronoiTool.mode);
 
+                // 🅱 Random Place + Clear
+                EditorGUILayout.Space(2);
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     VoronoiTool.randomSeedCount = EditorGUILayout.IntSlider(
-                        GC("Random Count", "[Random Place] 시 생성할 시드 수"),
+                        GC("Count", "[Random Place] 시드 수"),
                         VoronoiTool.randomSeedCount, 2, 30);
-                }
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    if (GUILayout.Button(GC("🎲 Random Place",
-                        "그래프 bbox 안에 랜덤으로 시드 배치 (기존 시드 대체)")))
-                    {
+                    if (GUILayout.Button("🎲 Random", GUILayout.Width(75)))
                         VoronoiTool.RandomPlaceSeeds(activeAuth, VoronoiTool.randomSeedCount);
-                    }
-                    if (GUILayout.Button(GC("Clear Seeds", "시드 모두 삭제")))
+                    if (GUILayout.Button("Clear", GUILayout.Width(50)))
                     {
                         VoronoiTool.ClearSeeds();
                         SceneView.RepaintAll();
                     }
                 }
 
-                EditorGUILayout.Space(2);
-                VoronoiTool.mode = (VoronoiTool.CellTypeMode)EditorGUILayout.EnumPopup(
-                    GC("Cell Type Mode",
-                       "CycleRegions=시드 인덱스 % 영역 수\n" +
-                       "RandomRegions=각 시드를 무작위 영역에\n" +
-                       "AllSame=모두 첫 번째 영역으로"),
-                    VoronoiTool.mode);
-
-                VoronoiTool.gridResolution = EditorGUILayout.Slider(
-                    GC("Grid Resolution",
-                       "격자 해상도(m). 작을수록 정확하지만 느림. 0.5~3 권장."),
-                    VoronoiTool.gridResolution, 0.3f, 5f);
-                VoronoiTool.smoothingPasses = EditorGUILayout.IntSlider(
-                    GC("Smoothing Passes",
-                       "경계 평활화 반복 수. 0=거침, 2=부드러움"),
-                    VoronoiTool.smoothingPasses, 0, 5);
-                VoronoiTool.simplifyTolerance = EditorGUILayout.Slider(
-                    GC("Simplify Tolerance",
-                       "Douglas-Peucker 단순화 허용 오차(m). 0=원본, 1=점 수 줄임"),
-                    VoronoiTool.simplifyTolerance, 0f, 3f);
-                VoronoiTool.boundsPadding = EditorGUILayout.Slider(
-                    GC("Bounds Padding",
-                       "도시 외곽에서 셀이 뻗어나갈 여유(m)"),
-                    VoronoiTool.boundsPadding, 0f, 30f);
-
+                // 🅲 Generate (큰 버튼)
                 EditorGUILayout.Space(4);
-                using (new EditorGUI.DisabledScope(activeRegion == null || VoronoiTool.seeds.Count == 0))
+                using (new EditorGUI.DisabledScope(VoronoiTool.seeds.Count == 0))
                 {
                     if (GUILayout.Button(GC("✨ Generate Regions",
-                        "시드 점들로 Voronoi 영역 생성 → 기존 Region 폴리곤 대체"),
-                        GUILayout.Height(28)))
+                        "시드 → Voronoi 영역 생성"), UIStyles.BigButton))
                     {
                         VoronoiTool.GenerateRegions(activeAuth, activeRegion);
                         MarkDirty();
                     }
                 }
-                if (activeRegion == null)
-                    EditorGUILayout.HelpBox("Regions 컨테이너가 필요합니다. Header에서 [Create Regions] 클릭.",
-                        MessageType.Warning);
-                else if (activeRegion.regions == null || activeRegion.regions.Count == 0)
-                    EditorGUILayout.HelpBox("Regions에 영역 정의가 없습니다. RegionAuthoring 인스펙터에서 'Add Residential' 등 추가하세요.",
-                        MessageType.Warning);
+
+                // 경고 (필요시)
+                if (VoronoiTool.mode != VoronoiTool.CellTypeMode.OnePerSeed)
+                {
+                    if (activeRegion == null)
+                        EditorGUILayout.HelpBox("Regions 필요. Header [Create Regions].",
+                            MessageType.Warning);
+                    else if (activeRegion.regions == null || activeRegion.regions.Count == 0)
+                        EditorGUILayout.HelpBox("Region 정의 필요 (또는 Mode=OnePerSeed).",
+                            MessageType.Warning);
+                }
+
+                // ▶ Advanced (품질 옵션)
+                if (UIStyles.AdvancedFoldout("voronoi"))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        VoronoiTool.gridResolution = EditorGUILayout.Slider(
+                            GC("Grid Resolution", "해상도(m). 작을수록 정확/느림"),
+                            VoronoiTool.gridResolution, 0.3f, 5f);
+                        VoronoiTool.smoothingPasses = EditorGUILayout.IntSlider(
+                            GC("Smoothing", "경계 평활화. 0=거침"),
+                            VoronoiTool.smoothingPasses, 0, 5);
+                        VoronoiTool.simplifyTolerance = EditorGUILayout.Slider(
+                            GC("Simplify", "Douglas-Peucker 단순화(m)"),
+                            VoronoiTool.simplifyTolerance, 0f, 3f);
+                        VoronoiTool.boundsPadding = EditorGUILayout.Slider(
+                            GC("Padding", "외곽 여유(m)"),
+                            VoronoiTool.boundsPadding, 0f, 30f);
+                    }
+                }
             }
         }
 
@@ -836,7 +907,8 @@ using (new EditorGUILayout.HorizontalScope())
         {
             var a = activeAuth;
 
-            // ─── Town Preset ───
+            // ─── 🅰 Town Preset (가장 큰 강조) ───
+            UIStyles.SubHeader("🅰 Quick Setup (Preset)");
             townPresetSlot = PresetGUIHelper.DrawPresetRow<TownPresetV2>(
                 "Town Preset", townPresetSlot,
                 preset => {
@@ -850,60 +922,23 @@ using (new EditorGUILayout.HorizontalScope())
                     return p;
                 }
             );
-            EditorGUILayout.Space(2);
 
-            // ★ Per-edge inset 토글
-            a.useEdgeWidthForInset = EditorGUILayout.Toggle(
-                GC("Use Edge Width Inset",
-                   "ON(권장): 각 변마다 그 도로의 폭/2 + Margin 만큼 줄임 (자연스러움)\n" +
-                   "OFF: Road Inset 단일 값을 모든 변에 적용 (기존 v2.0 동작)"),
-                a.useEdgeWidthForInset);
-
-            if (a.useEdgeWidthForInset)
+            // ─── 🅱 Block Pattern (자주 바꿈) ───
+            UIStyles.SubHeader("🅱 Block Pattern");
+            a.patternSettings.pattern = (BlockPatternFiller.BlockPattern)EditorGUILayout.EnumPopup(
+                GC("Pattern",
+                   "Solid=칸칸이 박스\nPerimeter=ㅁ자\nUShape=ㄷ자\nLShape=ㄴ자\nCourtyard=두꺼운 띠\nSingleTower=가운데 1개"),
+                a.patternSettings.pattern);
+            if (a.patternSettings.pattern != BlockPatternFiller.BlockPattern.Solid &&
+                a.patternSettings.pattern != BlockPatternFiller.BlockPattern.SingleTower)
             {
-                a.insetExtraMargin = EditorGUILayout.Slider(
-                    GC("Inset Extra Margin",
-                       "도로 폭/2에 추가로 더하는 여백(m). 0=빌딩이 도로 끝에 닿음, 0.5=약간 여유, 1.5+=넓은 보도"),
-                    a.insetExtraMargin, 0f, 5f);
-                EditorGUILayout.LabelField(
-                    GC("(Road Inset 무시됨)", "Use Edge Width Inset=ON일 때 단일 Road Inset은 사용 안 됨"),
-                    EditorStyles.miniLabel);
-            }
-            else
-            {
-                // 기존 단일 inset UI
-                float maxHalfW = ComputeMaxRoadHalfWidth(a);
-                float recommended = maxHalfW + 0.2f;
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    a.roadInset = EditorGUILayout.FloatField(GC("Road Inset",
-                        "face → 블록 줄이는 거리(m). 도로 폭의 절반 이상 권장"), a.roadInset);
-                    if (recommended > 0f && a.roadInset < recommended * 0.95f)
-                    {
-                        if (GUILayout.Button(GC($"⤴ {recommended:F1}", $"권장값({recommended:F2}m)으로"),
-                            GUILayout.Width(60)))
-                        {
-                            Undo.RecordObject(a, "Set Recommended Inset");
-                            a.roadInset = recommended;
-                            EditorUtility.SetDirty(a);
-                        }
-                    }
-                }
-                if (recommended > 0f && a.roadInset < recommended * 0.95f)
-                {
-                    EditorGUILayout.HelpBox(
-                        $"Road Inset({a.roadInset:F2}m) < 가장 굵은 도로 폭의 절반({maxHalfW:F2}m).\n" +
-                        $"권장: {recommended:F2}m",
-                        MessageType.Warning);
-                }
+                a.patternSettings.perimeterDepth = EditorGUILayout.Slider(
+                    GC("Depth", "띠 두께(m). 작게=얇은 띠, 크게=두꺼운 외곽"),
+                    a.patternSettings.perimeterDepth, 2f, 20f);
             }
 
-            a.blockThickness = EditorGUILayout.Slider(GC("Block Thickness",
-                "블록 메쉬 두께(m). 0=평면, 0.1=보도블록, 1+=단차"), a.blockThickness, 0f, 5f);
-
-            EditorGUILayout.LabelField("Buildings (fallback)", EditorStyles.miniBoldLabel);
-
-            // ─── Building Preset ───
+            // ─── 🅲 Buildings (자주 바꿈) ───
+            UIStyles.SubHeader("🅲 Buildings");
             buildingPresetSlot = PresetGUIHelper.DrawPresetRow<BuildingPresetV2>(
                 "Bldg Preset", buildingPresetSlot,
                 preset => {
@@ -917,49 +952,63 @@ using (new EditorGUILayout.HorizontalScope())
                     return p;
                 }
             );
-            EditorGUILayout.Space(2);
-
-             // ─── Block Pattern (전역 fallback) ───
-            a.patternSettings.pattern = (BlockPatternFiller.BlockPattern)EditorGUILayout.EnumPopup(
-                GC("Block Pattern",
-                   "Solid=칸칸이 박스 (기존)\n" +
-                   "Perimeter=ㅁ자 외곽 띠\n" +
-                   "UShape=ㄷ자 (한 변 비움)\n" +
-                   "LShape=ㄴ자 (두 변 비움)\n" +
-                   "Courtyard=두꺼운 띠+안마당\n" +
-                   "SingleTower=가운데 큰 박스 1개"),
-                a.patternSettings.pattern);
-            if (a.patternSettings.pattern != BlockPatternFiller.BlockPattern.Solid &&
-                a.patternSettings.pattern != BlockPatternFiller.BlockPattern.SingleTower)
+            using (new EditorGUILayout.HorizontalScope())
             {
-                a.patternSettings.perimeterDepth = EditorGUILayout.Slider(
-                    GC("Perimeter Depth",
-                       "띠 두께(m). 작게=얇은 띠, 크게=두꺼운 외곽\nCourtyard는 자동으로 1.4배 적용"),
-                    a.patternSettings.perimeterDepth, 2f, 20f);
+                GUILayout.Label("Height", GUILayout.Width(60));
+                a.buildSettings.minHeight = EditorGUILayout.FloatField(a.buildSettings.minHeight, GUILayout.Width(50));
+                GUILayout.Label("~", GUILayout.Width(15));
+                a.buildSettings.maxHeight = EditorGUILayout.FloatField(a.buildSettings.maxHeight, GUILayout.Width(50));
+                GUILayout.Label("m");
+                GUILayout.FlexibleSpace();
             }
-            EditorGUILayout.LabelField(
-                GC("(Region 폴리곤 안은 Region별 패턴 사용)",
-                   "Region 영역 안 블록은 Region 인스펙터의 pattern 적용"),
-                EditorStyles.miniLabel);
-            EditorGUILayout.Space(2);
+            a.buildSettings.density = EditorGUILayout.Slider(
+                GC("Density", "빌딩 생성 확률"), a.buildSettings.density, 0f, 1f);
 
-            a.buildSettings.mode = (BuildingFiller.FillMode)EditorGUILayout.EnumPopup(
-                GC("Fill Mode", "GridOBB=격자 채움, RoadFacing=도로변 정렬"), a.buildSettings.mode);
-            a.buildSettings.lotSize = EditorGUILayout.FloatField(
-                GC("Lot Size", "빌딩 한 칸 폭(m)"), a.buildSettings.lotSize);
-            if (a.buildSettings.mode == BuildingFiller.FillMode.RoadFacing)
+            // ─── ▶ Advanced ───
+            EditorGUILayout.Space(2);
+            if (UIStyles.AdvancedFoldout("buildSettings"))
             {
-                a.buildSettings.lotDepth = EditorGUILayout.FloatField(
-                    GC("Lot Depth", "빌딩 깊이(m)"), a.buildSettings.lotDepth);
-                a.buildSettings.fillInteriorRows = EditorGUILayout.Toggle(
-                    GC("Fill Interior Rows", "도로변 1줄 vs 안쪽 3줄"), a.buildSettings.fillInteriorRows);
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    UIStyles.SubHeader("Inset");
+                    a.useEdgeWidthForInset = EditorGUILayout.Toggle(
+                        GC("Use Edge Width", "ON: 변마다 도로 폭/2 인셋 (자연)\nOFF: 단일 Road Inset"),
+                        a.useEdgeWidthForInset);
+                    if (a.useEdgeWidthForInset)
+                    {
+                        a.insetExtraMargin = EditorGUILayout.Slider(
+                            GC("Extra Margin", "도로 폭/2에 더하는 여백(=보도 넓이)"),
+                            a.insetExtraMargin, 0f, 5f);
+                    }
+                    else
+                    {
+                        a.roadInset = EditorGUILayout.FloatField(
+                            GC("Road Inset", "단일 인셋 거리(m)"), a.roadInset);
+                    }
+                    a.blockThickness = EditorGUILayout.Slider(
+                        GC("Block Thickness", "블록 메쉬 두께(m). 0=평면"),
+                        a.blockThickness, 0f, 5f);
+
+                    UIStyles.SubHeader("Building Layout");
+                    a.buildSettings.mode = (BuildingFiller.FillMode)EditorGUILayout.EnumPopup(
+                        GC("Fill Mode", "GridOBB=격자, RoadFacing=도로변"),
+                        a.buildSettings.mode);
+                    a.buildSettings.lotSize = EditorGUILayout.FloatField(
+                        GC("Lot Size", "빌딩 한 칸 폭(m)"), a.buildSettings.lotSize);
+                    if (a.buildSettings.mode == BuildingFiller.FillMode.RoadFacing)
+                    {
+                        a.buildSettings.lotDepth = EditorGUILayout.FloatField(
+                            GC("Lot Depth", "빌딩 깊이(m)"), a.buildSettings.lotDepth);
+                        a.buildSettings.fillInteriorRows = EditorGUILayout.Toggle(
+                            GC("Fill Interior", "도로변 1줄 vs 안쪽 3줄"),
+                            a.buildSettings.fillInteriorRows);
+                    }
+                    a.buildSettings.lotMargin = EditorGUILayout.Slider(
+                        GC("Lot Margin", "칸 안 여백 비율"), a.buildSettings.lotMargin, 0f, 0.6f);
+                    a.buildSettings.seed = EditorGUILayout.IntField(
+                        GC("Seed", "랜덤 시드"), a.buildSettings.seed);
+                }
             }
-            a.buildSettings.lotMargin = EditorGUILayout.Slider(
-                GC("Lot Margin", "칸 안 빌딩 차지 비율"), a.buildSettings.lotMargin, 0f, 0.6f);
-            a.buildSettings.minHeight = EditorGUILayout.FloatField(GC("Min Height", "최소 높이(m)"), a.buildSettings.minHeight);
-            a.buildSettings.maxHeight = EditorGUILayout.FloatField(GC("Max Height", "최대 높이(m)"), a.buildSettings.maxHeight);
-            a.buildSettings.density = EditorGUILayout.Slider(GC("Density", "생성 확률"), a.buildSettings.density, 0f, 1f);
-            a.buildSettings.seed = EditorGUILayout.IntField(GC("Seed", "랜덤 시드"), a.buildSettings.seed);
         }
 
         void DrawRoadMeshSection()
@@ -976,49 +1025,63 @@ using (new EditorGUILayout.HorizontalScope())
             var rm = activeRoadMesh;
             EditorGUI.BeginChangeCheck();
 
+            // ─── 자주 바꿈: 머티리얼 ───
+            UIStyles.SubHeader("Materials");
             rm.roadMaterial = (Material)EditorGUILayout.ObjectField(
-                GC("Road Material", "도로 머티리얼 (없으면 회색 기본)"),
+                GC("Road", "도로 머티리얼 (없으면 회색 기본)"),
                 rm.roadMaterial, typeof(Material), false);
             rm.intersectionMaterial = (Material)EditorGUILayout.ObjectField(
-                GC("Intersection Mat", "교차로 머티리얼 (없으면 도로 머티리얼 재사용)"),
+                GC("Intersection", "교차로 머티리얼 (없으면 도로 머티리얼 재사용)"),
                 rm.intersectionMaterial, typeof(Material), false);
 
-            rm.roadYOffset = EditorGUILayout.Slider(
-                GC("Road Y Offset", "도로 메쉬 높이 (z-fighting 방지)"),
-                rm.roadYOffset, 0f, 0.5f);
-            rm.intersectionYOffset = EditorGUILayout.Slider(
-                GC("Intersection Y Offset", "교차로는 도로보다 위에 있어야 잘 덮임"),
-                rm.intersectionYOffset, 0f, 0.5f);
-
-            rm.trimRoadEnds = EditorGUILayout.Toggle(
-                GC("Trim Road Ends", "교차로 영역만큼 도로 끝을 잘라 깔끔하게 마감"),
-                rm.trimRoadEnds);
-            using (new EditorGUI.DisabledScope(!rm.trimRoadEnds))
+            // ─── ▶ Advanced ───
+            if (UIStyles.AdvancedFoldout("roadMesh"))
             {
-                rm.trimPadding = EditorGUILayout.Slider(
-                    GC("Trim Padding", "트림 반경 배수"),
-                    rm.trimPadding, 0.5f, 2f);
-                rm.intersectionCoverage = EditorGUILayout.Slider(
-                    GC("Intersection Coverage", "교차로가 도로 경계와 겹치는 정도 (빈틈 방지)"),
-                    rm.intersectionCoverage, 1f, 1.5f);
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    UIStyles.SubHeader("Heights (z-fighting)");
+                    rm.roadYOffset = EditorGUILayout.Slider(
+                        GC("Road Y", "도로 메쉬 높이"),
+                        rm.roadYOffset, 0f, 0.5f);
+                    rm.intersectionYOffset = EditorGUILayout.Slider(
+                        GC("Intersection Y", "교차로는 도로보다 위"),
+                        rm.intersectionYOffset, 0f, 0.5f);
+
+                    UIStyles.SubHeader("Trim");
+                    rm.trimRoadEnds = EditorGUILayout.Toggle(
+                        GC("Trim Road Ends", "도로 끝을 교차로 영역에서 자름"),
+                        rm.trimRoadEnds);
+                    using (new EditorGUI.DisabledScope(!rm.trimRoadEnds))
+                    {
+                        rm.trimPadding = EditorGUILayout.Slider(
+                            GC("Padding", "트림 반경 배수"),
+                            rm.trimPadding, 0.5f, 2f);
+                        rm.intersectionCoverage = EditorGUILayout.Slider(
+                            GC("Coverage", "교차로 원반 도로 경계 겹침"),
+                            rm.intersectionCoverage, 1f, 1.5f);
+                    }
+                    rm.intersectionSegments = EditorGUILayout.IntSlider(
+                        GC("Segments", "교차로 원반 분할 수"),
+                        rm.intersectionSegments, 4, 32);
+                }
             }
-            rm.intersectionSegments = EditorGUILayout.IntSlider(
-                GC("Intersection Segments", "교차로 원반 분할 수"),
-                rm.intersectionSegments, 4, 32);
 
             if (EditorGUI.EndChangeCheck())
             {
                 EditorUtility.SetDirty(rm);
             }
 
+            EditorGUILayout.Space(4);
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(GC("Build Road Mesh", "도로/교차로 메쉬 생성"), GUILayout.Height(24)))
+                if (GUILayout.Button(GC("Build Road Mesh", "도로/교차로 메쉬 생성"),
+                    GUILayout.Height(24)))
                 {
                     Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Build Road Mesh");
                     rm.Build(); MarkDirty();
                 }
-                if (GUILayout.Button(GC("Clear", "도로/교차로 메쉬 삭제"), GUILayout.Width(60), GUILayout.Height(24)))
+                if (GUILayout.Button(GC("Clear", "도로/교차로 메쉬 삭제"),
+                    GUILayout.Width(60), GUILayout.Height(24)))
                 {
                     Undo.RegisterFullObjectHierarchyUndo(activeAuth.gameObject, "Clear Road Mesh");
                     rm.Clear(); MarkDirty();
@@ -1140,41 +1203,113 @@ using (new EditorGUILayout.HorizontalScope())
             Repaint();
         }
 
+        void DrawQuickActionsSection()
+        {
+            EditorGUILayout.HelpBox(
+                "한 클릭으로 자주 쓰는 시퀀스 실행.\n" +
+                "처음 사용 시 [TownGen V2 → Create Built-in Presets] 메뉴를 먼저 실행하세요.",
+                MessageType.Info);
+
+            QuickActions.alwaysRegenerate = EditorGUILayout.Toggle(
+                GC("Always Regenerate",
+                   "ON(권장): 매번 그래프 새로 생성 (다른 도시)\n" +
+                   "OFF: 그래프 있으면 빌드만 다시 (같은 도시)"),
+                QuickActions.alwaysRegenerate);
+
+            // ─── ★ OSM-First (메인 흐름) ───
+            UIStyles.SubHeader("🌐 OSM City (Main)");
+            if (GUILayout.Button(GC("🌐 Quick OSM City",
+                "OSM 파일 선택 → 임포트 + 정리 + Voronoi + Build All\n" +
+                "(외톨이 제거 + 도로 폭 자동 + 영역 분할 + 빌딩 채우기)"),
+                UIStyles.BigButton))
+            {
+                QuickActions.QuickOSMCity(activeAuth, ref activeRegion);
+                MarkDirty();
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(GC("📂 Import Only",
+                    "OSM 파일만 임포트 (정리/빌드 없음)"),
+                    GUILayout.Height(24)))
+                {
+                    string path = EditorUtility.OpenFilePanel("Select .osm", Application.dataPath, "osm");
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        Undo.RegisterCompleteObjectUndo(activeAuth, "OSM Import");
+                        var result = TownGen.V2.OSM.OSMImporter.Import(path, activeAuth, osmOptions);
+                        Debug.Log("[OSM] " + result.summary);
+                        MarkDirty();
+                    }
+                }
+                if (GUILayout.Button(GC("🔧 Cleanup + Build",
+                    "이미 임포트된 OSM 정리 + 빌드"),
+                    GUILayout.Height(24)))
+                {
+                    QuickActions.QuickCleanupOSM(activeAuth, activeRegion);
+                    MarkDirty();
+                }
+            }
+
+            // ─── 격자 (간단한 테스트) ───
+            UIStyles.SubHeader("📐 Grid (Test)");
+            if (GUILayout.Button(GC("📐 Quick Grid City",
+                "5×5 격자 + 중층 주거 (테스트/데모용)"),
+                GUILayout.Height(24)))
+            {
+                QuickActions.QuickGridCity(activeAuth, activeRegion);
+                MarkDirty();
+            }
+
+            // ─── L-System (Experimental, 작게) ───
+            UIStyles.SubHeader("🧪 L-System (Experimental)");
+            EditorGUILayout.HelpBox(
+                "L-System은 실험적입니다. 닫힌 face 형성이 어려워 빌딩이 적게 나옵니다.\n" +
+                "권장: OSM 임포트 또는 Grid 사용.",
+                MessageType.None);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(GC("🏘 Try Village",
+                    "L-System으로 작은 마을 시도 (결과 들쭉날쭉)"),
+                    GUILayout.Height(20)))
+                {
+                    QuickActions.QuickVillage(activeAuth, activeRegion);
+                    MarkDirty();
+                }
+                if (GUILayout.Button(GC("🌆 Try Big City",
+                    "L-System으로 거대 도시 시도"),
+                    GUILayout.Height(20)))
+                {
+                    QuickActions.QuickBigCityWithRegions(activeAuth, ref activeRegion);
+                    MarkDirty();
+                }
+            }
+
+            // ─── 라이팅 토글 ───
+            UIStyles.SubHeader("🌓 Lighting");
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(GC("☀ Day", "주간 라이팅 + 빌딩 emission OFF"),
+                    GUILayout.Height(24)))
+                {
+                    QuickActions.QuickDayMode(activeAuth);
+                }
+                if (GUILayout.Button(GC("🌙 Night",
+                    "야경 라이팅 + 빌딩 emission ON (한 번에)"),
+                    GUILayout.Height(24)))
+                {
+                    QuickActions.QuickNightCity(activeAuth, activeRegion);
+                }
+            }
+        }
+
         Color nightEmissionColor = new Color(1f, 0.85f, 0.5f);
 
         void DrawOSMSection()
         {
-            EditorGUILayout.HelpBox(
-                "OSM(.osm) 파일을 RoadGraph로 변환합니다.\n" +
-                "1) https://www.openstreetmap.org 에서 영역 선택 → Export → .osm 다운로드\n" +
-                "2) 또는 https://overpass-turbo.eu 에서 쿼리 후 다운로드\n" +
-                "3) 너무 큰 영역은 노드 수만 개 → 작은 동네 단위 권장",
-                MessageType.Info);
-
-            osmOptions.clearGraphFirst = EditorGUILayout.Toggle(
-                GC("Clear Graph First", "임포트 전 기존 그래프 삭제"),
-                osmOptions.clearGraphFirst);
-            osmOptions.useOSMRoadWidths = EditorGUILayout.Toggle(
-                GC("Use OSM Road Widths",
-                   "ON: highway 태그(motorway/residential/footway 등)에 따라 자동 폭\nOFF: 모두 Default Width"),
-                osmOptions.useOSMRoadWidths);
-            using (new EditorGUI.DisabledScope(osmOptions.useOSMRoadWidths))
-            {
-                osmOptions.defaultWidth = EditorGUILayout.Slider(
-                    GC("Default Width", "Use OSM Widths=OFF일 때 적용할 폭(m)"),
-                    osmOptions.defaultWidth, 1f, 10f);
-            }
-            osmOptions.scaleFactor = EditorGUILayout.Slider(
-                GC("Scale Factor",
-                   "1.0=실제 크기, 0.5=절반, 0.1=1/10. 큰 도시 미니어처용"),
-                osmOptions.scaleFactor, 0.05f, 2f);
-            osmOptions.excludeFootways = EditorGUILayout.Toggle(
-                GC("Exclude Footways", "footway/path/cycleway/pedestrian 제외 (간단한 도로망만)"),
-                osmOptions.excludeFootways);
-
-            EditorGUILayout.Space(4);
+            // 핵심 버튼만 강조
             if (GUILayout.Button(GC("📂 Import .osm File...",
-                "OSM 파일 선택 → 그래프 변환"), GUILayout.Height(28)))
+                "OSM 파일 선택 → 그래프 변환"),
+                UIStyles.BigButton))
             {
                 string path = EditorUtility.OpenFilePanel("Select OSM file", Application.dataPath, "osm");
                 if (!string.IsNullOrEmpty(path))
@@ -1186,10 +1321,39 @@ using (new EditorGUILayout.HorizontalScope())
                     MarkDirty();
                 }
             }
+
             EditorGUILayout.HelpBox(
-                "임포트 후 [Build All]을 누르면 블록과 빌딩이 자동 생성됩니다.\n" +
-                "OSM 도로망이 매우 복잡하면 Validate Graph로 무결성 확인 권장.",
-                MessageType.None);
+                "1) https://www.openstreetmap.org → 영역 선택 → Export\n" +
+                "2) 200~500m 권장 (큰 영역은 매우 느림)\n" +
+                "3) Import 후 [Build All] 클릭",
+                MessageType.Info);
+
+            // ─── ▶ Advanced ───
+            if (UIStyles.AdvancedFoldout("osm", "▶ Import Options"))
+            {
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    osmOptions.clearGraphFirst = EditorGUILayout.Toggle(
+                        GC("Clear First", "임포트 전 기존 그래프 삭제"),
+                        osmOptions.clearGraphFirst);
+                    osmOptions.useOSMRoadWidths = EditorGUILayout.Toggle(
+                        GC("Use OSM Widths",
+                           "ON: highway별 자동 폭\nOFF: 모두 Default"),
+                        osmOptions.useOSMRoadWidths);
+                    using (new EditorGUI.DisabledScope(osmOptions.useOSMRoadWidths))
+                    {
+                        osmOptions.defaultWidth = EditorGUILayout.Slider(
+                            GC("Default Width", "OFF일 때 폭"),
+                            osmOptions.defaultWidth, 1f, 10f);
+                    }
+                    osmOptions.scaleFactor = EditorGUILayout.Slider(
+                        GC("Scale", "1=실제, 0.1=1/10 미니어처"),
+                        osmOptions.scaleFactor, 0.05f, 2f);
+                    osmOptions.excludeFootways = EditorGUILayout.Toggle(
+                        GC("Skip Footways", "footway/path/cycleway 제외"),
+                        osmOptions.excludeFootways);
+                }
+            }
         }
 
         void DrawLightingSection()
