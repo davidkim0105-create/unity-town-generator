@@ -305,17 +305,37 @@ namespace TownGen.V2.EditorTools
 
             auth.InvalidateFaceCache();
 
-            // 8) 1차 Build
-            BuildAll(auth, region);
+            // 8) 1차 Build (블록 메쉬만 생성)
+            BlockBuilder.RebuildAllBlocks(auth, auth.roadInset,
+                regions: region, blockThickness: auth.blockThickness,
+                useEdgeWidthForInset: auth.useEdgeWidthForInset,
+                insetExtraMargin: auth.insetExtraMargin);
 
             // 9) 큰 빈 블록 자동 분할
             int subdivided = SubdivideLargeBlocks(auth, region, minArea: 600f, maxIterations: 4);
             if (subdivided > 0)
             {
                 auth.InvalidateFaceCache();
-                BuildAll(auth, region);
+                BlockBuilder.RebuildAllBlocks(auth, auth.roadInset,
+                    regions: region, blockThickness: auth.blockThickness,
+                    useEdgeWidthForInset: auth.useEdgeWidthForInset,
+                    insetExtraMargin: auth.insetExtraMargin);
                 Debug.Log($"[QuickOSMCity] Subdivided {subdivided} large blocks.");
             }
+
+            // 10) ★ Region 프리셋 자동 매핑
+            if (region != null)
+            {
+                int assigned = RegionAutoAssigner.AutoAssign(region);
+                Debug.Log($"[QuickOSMCity] Auto-assigned {assigned} region presets.");
+            }
+
+            // 11) ★ 적응형 빌딩 (블록 면적별 패턴/높이)
+            AdaptiveBuildingFiller.ApplyAdaptive(auth, auth.buildSettings, region);
+
+            // 12) 도로 메쉬
+            var rmFinal = auth.GetComponent<RoadMeshAuthoring>();
+            if (rmFinal != null) rmFinal.Build();
 
             ReportStats(auth, "Quick OSM City");
             EditorUtility.SetDirty(auth);
