@@ -1,108 +1,125 @@
 # Town Generator V2 — Changelog
 
-## v2.2.3 (2025-01) — OSM Import + Night Lighting
+## v2.3.2 (2025-01) — OSM Sample Bundle
+
+### 🌐 OSM Samples (5개 빌트인)
+- Tokyo District (입체교차 + 골목)
+- Gangnam Grid (한국 격자)
+- Manhattan Grid (북미 직교)
+- Paris Radial (방사형)
+- Small Town (작은 마을)
+
+### Sample Loader
+- `SampleOSMLoader`: Resources/OSMSamples/ 자동 로드
+- 윈도우에 Sample 드롭다운 + Load 버튼
+- 다운로드 없이 한 클릭으로 도시 시도
+
+---
+
+## v2.3.1 — Adaptive Building Filler
+
+### 🏢 Adaptive 빌딩
+- `AdaptiveBuildingFiller`: 블록 면적 분포(percentile) 분석
+- 패턴: 95% Solid (밀도 유지), 거대 블록만 Courtyard (시각 강조)
+- 높이 자동 차등 (작은 블록 ↓, 큰 블록 ↑)
+
+### 🎨 Region 자동 매핑
+- `RegionAutoAssigner`: Voronoi 결과에 6개 빌딩 프리셋 순환 적용
+- Commercial / MidResi / LowResi / Sparse / Industrial / Megacity
+- 자동 색/이름 부여
+
+---
+
+## v2.3.0 — UX 정리 + OSM-First Quick Actions
+
+### 🎨 UX 재편
+- `UIStyles`: 공통 시각 시스템 (색 Foldout, 헤더, 버튼)
+- 4 카테고리 (EDIT/BUILD/DATA/DEBUG) 색 구분
+- 전 섹션 Foldout + EditorPrefs 영속
+
+### 🛠 옵션 정리 (Simple/Advanced)
+- Build Settings: 16 → 6 + Advanced
+- Road Mesh: 8 → 2 + Advanced
+- L-System: 11 → 4 + Advanced
+- Voronoi: 9 → 4 + Advanced
+- Subdivide: 5 → 1 + Advanced
+
+### ⚡ Quick Actions (한 클릭 워크플로우)
+- 🌐 Quick OSM City (★ 메인): 파일 → 임포트 → 정리 → Voronoi → Build
+- 🔧 Cleanup + Build
+- 📐 Quick Grid City (테스트)
+- 🧪 L-System (Experimental, 격하)
+- ☀ Day / 🌙 Night
+
+### 🎯 v2 방향 명문화
+- **OSM = 도로 데이터 (실제)** + **우리 도구 = 빌딩 채우기 (가치)**
+- L-System은 보조 (실험적 스케치)
+
+### 자동화
+- 외톨이 자동 제거
+- 도로 폭 자동 0.5배 (motorway 10m → 5m)
+- GridOBB + fillInteriorRows
+- SubdivideLargeBlocks (4 iter, ratio-aware)
+
+---
+
+## v2.2.3 — OSM Import + Night Lighting
 
 ### 🌐 OSM Import
-- **OSMParser**: XML 파싱, 위경도 → Unity 미터 (등거리 평면 투영)
-- **OSMImporter**: way[highway=*] → RoadGraph 변환
-- highway 종류별 자동 도로 폭 (motorway 10m ~ footway 1.5m)
-- 옵션: clearGraphFirst, useOSMRoadWidths, scaleFactor, excludeFootways
+- `OSMParser` (XML), `OSMImporter` (way → RoadGraph)
+- highway 종류별 자동 폭
 
-### 🌙 Night Lighting Preset (보너스)
-- Day/Night 토글 (Directional Light + Ambient + Fog 변경)
-- 빌딩 emission on/off (창문 효과)
-- Color picker로 emission 색상
+### 🌙 Night Lighting (보너스)
+- Day/Night 토글, 빌딩 emission
 
 ---
 
 ## v2.2.2 — Block Patterns + Window Foldouts
 
-### 🏗 블록 변형 패턴 6종
-- Solid, Perimeter (ㅁ자), UShape (ㄷ자), LShape (ㄴ자), Courtyard, SingleTower
-- Region별 다른 패턴 적용 가능 (TownRegionV2.pattern)
-- Perimeter 두께 자동 제한 (블록보다 크면 fallback)
+### 🏗 블록 패턴 6종
+- Solid / Perimeter / UShape / LShape / Courtyard / SingleTower
+- Region별 패턴
 
 ### 🎨 윈도우 정리
-- 모든 섹션 Foldout화 (EditorPrefs 영속)
-- [Expand All] / [Collapse All] / [Default] 버튼
-- 섹션 아이콘 + 권장 펼침 상태
+- Foldout화 + 일괄 펼침/접기
 
 ---
 
 ## v2.2.1 — Voronoi Region + Block Stats
 
 ### ◇ Voronoi 자동 Region
-- VoronoiRegionGenerator: 격자 샘플링 + 가장 가까운 시드 + 경계 추출
-- VoronoiTool (Shift+F): 시드 점 클릭, 우클릭 제거, Ctrl+휠 그리드 해상도
-- 4가지 모드: OnePerSeed (자동 생성), CycleRegions, RandomRegions, AllSame
-- Random Place + Generate 버튼
-- 경계 평활화 + Douglas-Peucker 단순화
+- 격자 샘플링 + 가장 가까운 시드 + 경계 추출
+- 4 모드 (OnePerSeed / CycleRegions / RandomRegions / AllSame)
 
-### 🔍 Block Inspector (Shift+A)
-- 블록 호버로 면적/꼭짓점/빌딩 수/Region 표시
-- 클릭으로 그 블록 GameObject 선택
-
-### 📊 통계
-- Graph Info: 블록 수, 빌딩 수, 총 면적
-- Region별 분포 표시
+### 🔍 Block Inspector + 통계
+- 호버 정보, 블록 수/빌딩 수/Region별 분포
 
 ---
 
-## v2.2.0 — ScriptableObject Presets + Top-Down Capture
+## v2.2.0 — Presets + Top-Down Capture
 
 ### 🎁 Preset 시스템
-- LSystemPresetV2 / BuildingPresetV2 / TownPresetV2 (ScriptableObject)
-- PresetGUIHelper: 공통 "Slot + Apply + Save As" 한 줄 UI
-- TownGenWindow 통합 (Build Settings, Buildings, L-System)
-- BuiltInPresetCreator 메뉴: 17개 빌트인 프리셋 일괄 생성
-  - LSystem: SmallVillage, GridCity, Natural, Radial, BigCity, LinearTown
-  - Building: LowResi, MidResi, HighCommercial, Industrial, Sparse, Megacity
-  - Town: Default, NoSidewalk, WideSidewalk, ParkRoad, LegacyV20
+- LSystem / Building / Town Preset (ScriptableObject)
+- 17개 빌트인
 
-### 📷 Top-Down Capture (보너스)
-- 도시를 위에서 본 PNG 출력 (정사영 카메라)
-- 사이즈: 1K/2K/4K/8K, 투명 배경 옵션
-- 자동 bbox + 카메라 배치
-- TownGenWindow → Document 섹션
+### 📷 Top-Down Capture
+- PNG 출력 (1K~8K, 투명 배경 옵션)
 
 ---
 
-## v2.1.0 (2025-01) — 자동 도시 생성 + 시각화
+## v2.1.0 — 자동 도시 생성 + 시각화
 
-### 🎯 핵심
-- 도로 메쉬 + 교차로 메쉬 (RoadMeshBuilder, IntersectionMeshBuilder)
-- Subdivide 자동 분할 (Shift+X)
-- L-System 자동 도시 성장 (Shift+C)
-- Road Brush 드래그 페인트 (Shift+Z)
-- Width Brush 도로 폭 변경 (Shift+V)
-- Per-Edge Inset (변별 자동 인셋)
-
-### 🛠 UX
-- 단축키 재편: QWERT(편집) + ZXCV(생성)
-- 도구 토글 (다시 누르면 해제)
-- 표준 휠 컨트롤 (Ctrl=영역, Shift=크기)
-- 외톨이 노드 자동 제거
-- 도로 폭 일괄 변경 + 통계
-- L-System 폭 보존 옵션
+- 도로 메쉬 + 교차로 메쉬
+- Subdivide / L-System Grow / Road Brush / Width Brush
+- Per-Edge Inset
+- 도구 토글, 표준 휠 컨트롤
+- 외톨이 노드 제거, 도로 폭 일괄
 
 ---
 
-## v2.0.0 (2025-01) — 초기 릴리스
+## v2.0.0 — 초기 릴리스
 
-### 🎯 핵심 기능
-- 자유 도로 그래프 편집 (격자 제약 없음)
-- Face 추출 (Half-edge 알고리즘)
-- 블록 메쉬 생성 (인셋 + 두께)
-- 빌딩 자동 배치 (RoadFacing / GridOBB)
-- Region 시스템 (영역별 스타일)
-- JSON Save/Load (자동 Build)
-
-### 🛠 도구
-- Move/Draw/Cut/Delete/Connect (Shift+Q/W/E/R/T)
-- Region Paint
-
-### 🎨 UX
-- 별도 윈도우 (Alt+Shift+T)
-- 단축키 + 그리드/각도 스냅
-- 도구별 시각 미리보기
-- 그래프 검증 + 자동 생성 프리셋
+- 자유 도로 그래프 편집
+- Face 추출, 블록 메쉬, 빌딩 자동 배치
+- Region 시스템, JSON Save/Load
+- 별도 윈도우, 단축키, 자동 생성 프리셋
